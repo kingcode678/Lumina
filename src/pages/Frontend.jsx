@@ -12,6 +12,12 @@ import {
   setDoc 
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
+import { 
+  Bot, 
+  X, 
+  Send, 
+  Brain
+} from 'lucide-react';
 import '../styles/Frontend.css';
 
 // Import all topics
@@ -46,7 +52,10 @@ const topics = [
   topic16, topic17, topic18, topic19, topic20
 ];
 
-const COURSE_ID = 'frontend'; // Bu kursun ID-si
+const COURSE_ID = 'frontend';
+
+// API Key
+const GROQ_API_KEY = process.env.REACT_APP_GROQ_API_KEY;
 
 const Frontend = () => {
   const [currentTopic, setCurrentTopic] = useState(0);
@@ -70,14 +79,118 @@ const Frontend = () => {
   const [editorOutput, setEditorOutput] = useState('');
   const [activeEditorTab, setActiveEditorTab] = useState('html');
   
-  // Yeni state'ler
   const [user, setUser] = useState(null);
   const [activationData, setActivationData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activationError, setActivationError] = useState('');
   const [currentMonth, setCurrentMonth] = useState(0);
 
+  // Chatbot state
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [messages, setMessages] = useState([
+    { 
+      role: 'assistant', 
+      content: 'Salam! 👋 Mən Lumina Təhsil Platformasının Frontend Development Kurs Müəllimiyəm. Sizə HTML, CSS, JavaScript və React mövzularında tam dəstək verirəm. Sualınız varsa, buyurun soruşun!\n\nMövcud mövzularımız:\n\n1. HTML5 & CSS3 Əsasları\n2. JavaScript ES6+\n3. Responsive Design\n4. React.js\n5. Modern Frontend Alətləri\n\nHansı mövzuda kömək lazımdır?' 
+    }
+  ]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const messagesEndRef = useRef(null);
+
   const iframeRef = useRef(null);
+
+  // Chatbot funksiyaları
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const sendMessage = async () => {
+    if (!inputMessage.trim()) return;
+
+    const userMessage = { role: 'user', content: inputMessage };
+    setMessages(prev => [...prev, userMessage]);
+    setInputMessage('');
+    setIsTyping(true);
+
+    try {
+      if (!GROQ_API_KEY || GROQ_API_KEY === "YOUR_API_KEY_HERE") {
+        throw new Error('API açarı təyin edilməyib');
+      }
+
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            {
+              role: 'system',
+              content: `Sən Lumina Təhsil Platformasının rəsmi Frontend Development Kurs Müəllimisisən. 
+              
+Əsas vəzifən:
+- Tələbələrə HTML, CSS, JavaScript və React öyrətmək
+- Hər sualı çox sadə, anlaşıqlı və ətraflı izah etmək
+- Real həyat nümunələri ilə izahlar vermək (veb saytlar, tətbiqlər)
+- Tələbənin səviyyəsinə uyğun fərdi yanaşma göstərmək
+- Həvəsləndirici və dəstəkçi olmaq
+
+Kurs strukturumuz:
+1. HTML5 (Struktur, Semantik teqlər, Formlar)
+2. CSS3 (Selektorlar, Flexbox, Grid, Animations)
+3. JavaScript ES6+ (Dəyişənlər, Funksiyalar, DOM, Events, Async)
+4. Responsive Design (Mobile-first, Media queries)
+5. React.js (Components, Hooks, State, Props)
+6. Git & GitHub (Versiya nəzarəti)
+7. Deployment (Netlify, Vercel)
+
+Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ver. Kod nümunələri ilə izah et (HTML, CSS, JS). Tələbə çətinlik çəkirsə, daha sadə izah et. Həvəsləndirici ol!`
+            },
+            ...messages.map(m => ({ role: m.role, content: m.content })),
+            { role: 'user', content: inputMessage }
+          ],
+          temperature: 0.7,
+          max_tokens: 2048
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || `HTTP xəta: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        throw new Error('API-dən cavab alınmadı');
+      }
+
+      const botResponse = data.choices[0].message.content;
+      setMessages(prev => [...prev, { role: 'assistant', content: botResponse }]);
+      
+    } catch (error) {
+      console.error('Chatbot xətası:', error);
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: `Bağışlayın, texniki problem yarandı: ${error.message}. Zəhmət olmasa sonra yenidən cəhd edin.` 
+      }]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
 
   // Auth state listener
   useEffect(() => {
@@ -95,10 +208,8 @@ const Frontend = () => {
     return () => unsubscribe();
   }, []);
 
-  // İstifadəçinin aktivləşdirmə statusunu yoxla
   const checkUserActivation = async (userId) => {
     try {
-      // İstifadəçinin bu kurs üçün kodunu yoxla
       const codeRef = doc(db, 'users', userId, 'activationCodes', COURSE_ID);
       const codeSnap = await getDoc(codeRef);
 
@@ -109,14 +220,12 @@ const Frontend = () => {
         if (data.status === 'active') {
           setIsActivated(true);
           setCurrentMonth(data.currentMonth || 1);
-          // LocalStorage backup
           localStorage.setItem('frontend_course_activated', 'true');
           localStorage.setItem('frontend_current_month', data.currentMonth || 1);
         } else {
           setIsActivated(false);
         }
       } else {
-        // Kod yoxdur - yoxla görək ümumi kolleksiyada varmı (köhnə sistem üçün)
         const q = query(
           collection(db, 'activationCodes'), 
           where('userId', '==', userId),
@@ -135,7 +244,6 @@ const Frontend = () => {
         }
       }
 
-      // Analiz məlumatlarını yüklə
       await loadUserAnalysis(userId);
       
     } catch (error) {
@@ -145,7 +253,6 @@ const Frontend = () => {
     }
   };
 
-  // İstifadəçi analiz məlumatlarını yüklə
   const loadUserAnalysis = async (userId) => {
     try {
       const analysisRef = doc(db, 'users', userId, 'courseProgress', COURSE_ID);
@@ -154,12 +261,10 @@ const Frontend = () => {
       if (analysisSnap.exists()) {
         setAnalysisData(analysisSnap.data());
       } else {
-        // LocalStorage-dan köhnə məlumatları yüklə
         const savedAnalysis = localStorage.getItem('frontend_course_analysis');
         if (savedAnalysis) {
           const parsed = JSON.parse(savedAnalysis);
           setAnalysisData(parsed);
-          // Firestore-a köçür
           await setDoc(analysisRef, parsed);
         }
       }
@@ -168,7 +273,6 @@ const Frontend = () => {
     }
   };
 
-  // Kodu aktivləşdir (Firebase yoxlaması ilə)
   const activateCourse = async (inputCode) => {
     setActivationError('');
     
@@ -178,7 +282,6 @@ const Frontend = () => {
     }
 
     try {
-      // Kodu yoxla - ümumi kolleksiyadan
       const codeRef = doc(db, 'activationCodes', inputCode.toUpperCase());
       const codeSnap = await getDoc(codeRef);
 
@@ -189,7 +292,6 @@ const Frontend = () => {
 
       const codeData = codeSnap.data();
 
-      // Yoxlamalar
       if (codeData.course !== COURSE_ID) {
         setActivationError('Bu kod bu kurs üçün deyil');
         return false;
@@ -211,15 +313,13 @@ const Frontend = () => {
         return false;
       }
 
-      // Aktivləşdir
       const updateData = {
         status: 'active',
         activatedAt: serverTimestamp(),
         currentMonth: 1,
-        'payment.status': 'pending' // Admin təsdiqi gözləyir
+        'payment.status': 'pending'
       };
 
-      // Hər iki yerdə yenilə
       await updateDoc(codeRef, updateData);
       await updateDoc(doc(db, 'users', user.uid, 'activationCodes', COURSE_ID), updateData);
 
@@ -227,7 +327,6 @@ const Frontend = () => {
       setCurrentMonth(1);
       setActivationData({ ...codeData, ...updateData });
       
-      // LocalStorage backup
       localStorage.setItem('frontend_course_activated', 'true');
       localStorage.setItem('frontend_current_month', '1');
 
@@ -240,14 +339,9 @@ const Frontend = () => {
     }
   };
 
-  // LocalStorage'dan ilkin yükləmə (backup üçün)
   useEffect(() => {
     const savedActivation = localStorage.getItem('frontend_course_activated');
     const savedMonth = localStorage.getItem('frontend_current_month');
-    
-    if (savedActivation === 'true' && !isActivated) {
-      // Firebase yoxlaması lazımdır, sadəcə UI üçün
-    }
     
     if (savedMonth) {
       setCurrentMonth(parseInt(savedMonth));
@@ -271,10 +365,8 @@ const Frontend = () => {
   }, [editorCode]);
 
   const checkAccess = () => {
-    if (currentTopic === 0) return true; // Birinci mövzu həmişə pulsuz
+    if (currentTopic === 0) return true;
     if (isActivated) return true;
-    
-    // SAMKA test kodu aktivləşdirmə etmir - sadəcə yazı olaraq qalır
     return false;
   };
 
@@ -352,7 +444,6 @@ const Frontend = () => {
     }
   };
 
-  // Analizi Firebase-ə saxla
   const updateAnalysis = async (field, data) => {
     const newAnalysis = { ...analysisData };
     if (Array.isArray(newAnalysis[field])) {
@@ -366,10 +457,8 @@ const Frontend = () => {
     }
     setAnalysisData(newAnalysis);
     
-    // LocalStorage'a yadda saxla
     localStorage.setItem('frontend_course_analysis', JSON.stringify(newAnalysis));
     
-    // Firebase-ə saxla (əgər user varsa)
     if (user) {
       try {
         const analysisRef = doc(db, 'users', user.uid, 'courseProgress', COURSE_ID);
@@ -460,7 +549,7 @@ const Frontend = () => {
               <div className="progress-track">
                 <div 
                   className="progress-fill" 
-                  style={{ width: `${week.percentage}%` }}
+                  style={{ width: week.percentage + '%' }}
                 />
               </div>
               <span>{week.completed}/{week.total}</span>
@@ -758,6 +847,72 @@ const Frontend = () => {
             </>
           )}
         </main>
+      </div>
+
+      {/* AI Chatbot - Lumina Frontend Müəllimi */}
+      <div className={`chatbot-container ${isChatOpen ? 'open' : ''}`}>
+        <button 
+          className="chatbot-toggle"
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          title="AI Müəllim ilə söhbət et"
+        >
+          {isChatOpen ? <X size={24} /> : <Bot size={28} />}
+        </button>
+
+        {isChatOpen && (
+          <div className="chatbot-window">
+            <div className="chatbot-header">
+              <div className="chatbot-title">
+                <Brain size={20} />
+                <span>Lumina Frontend Müəllim</span>
+              </div>
+              <p className="chatbot-subtitle">HTML, CSS, JavaScript, React Dəstəyi</p>
+            </div>
+
+            <div className="chatbot-messages">
+              {messages.map((msg, idx) => (
+                <div key={idx} className={`message ${msg.role}`}>
+                  <div className="message-content">
+                    {msg.content.split('\n').map((line, i) => (
+                      <p key={i}>{line}</p>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {isTyping && (
+                <div className="message assistant typing">
+                  <div className="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            <div className="chatbot-input">
+              <input
+                type="text"
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="HTML, CSS, JS, React suallarınızı yazın..."
+                disabled={isTyping}
+              />
+              <button 
+                onClick={sendMessage}
+                disabled={isTyping || !inputMessage.trim()}
+              >
+                <Send size={18} />
+              </button>
+            </div>
+            
+            <div className="chatbot-footer">
+              <small>Powered by Groq AI • Llama 3.3</small>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
