@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { auth, db } from '../firebase';
 import { 
   doc, 
@@ -19,6 +19,9 @@ import {
   Brain
 } from 'lucide-react';
 import '../styles/Frontend.css';
+
+// Import Code Editor Component
+import FReditor from '../pages/Freditor';
 
 // Import all topics
 import { topic1 } from '../data/topic1';
@@ -65,8 +68,11 @@ const Frontend = () => {
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
-  const [exerciseCode, setExerciseCode] = useState('');
+  
+  // Exercise editor state - FReditor üçün
+  const [exerciseCode, setExerciseCode] = useState({ html: '', css: '', js: '' });
   const [exerciseOutput, setExerciseOutput] = useState('');
+  
   const [showVideoHelp, setShowVideoHelp] = useState(false);
   const [analysisData, setAnalysisData] = useState({
     weeklyProgress: [],
@@ -75,9 +81,9 @@ const Frontend = () => {
     codingAttempts: [],
     totalTimeSpent: 0
   });
+  
+  // Main editor state - FReditor üçün
   const [editorCode, setEditorCode] = useState({ html: '', css: '', js: '' });
-  const [editorOutput, setEditorOutput] = useState('');
-  const [activeEditorTab, setActiveEditorTab] = useState('html');
   
   const [user, setUser] = useState(null);
   const [activationData, setActivationData] = useState(null);
@@ -97,7 +103,10 @@ const Frontend = () => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
 
-  const iframeRef = useRef(null);
+  // Hər zaman currentTopic dəyişəndə yenilənən mövzu məlumatı
+  const currentTopicData = useMemo(() => {
+    return topics[currentTopic] || topics[0];
+  }, [currentTopic]);
 
   // Chatbot funksiyaları
   const scrollToBottom = () => {
@@ -121,7 +130,7 @@ const Frontend = () => {
         throw new Error('API açarı təyin edilməyib');
       }
 
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions     ', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${GROQ_API_KEY}`,
@@ -349,20 +358,25 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
   }, []);
 
   useEffect(() => {
-    const topic = topics[currentTopic];
-    if (topic && topic.starterCode) {
+    // currentTopicData artıq useMemo ilə avtomatik yenilənir
+    if (currentTopicData && currentTopicData.starterCode) {
       setEditorCode({
-        html: topic.starterCode.html || '',
-        css: topic.starterCode.css || '',
-        js: topic.starterCode.js || ''
+        html: currentTopicData.starterCode.html || '',
+        css: currentTopicData.starterCode.css || '',
+        js: currentTopicData.starterCode.js || ''
       });
-      setExerciseCode(topic.exercise?.starterCode || '');
+      // Exercise üçün də starter code təyin et
+      if (currentTopicData.exercise?.starterCode) {
+        setExerciseCode({
+          html: currentTopicData.exercise.starterCode.html || '',
+          css: currentTopicData.exercise.starterCode.css || '',
+          js: currentTopicData.exercise.starterCode.js || ''
+        });
+      } else {
+        setExerciseCode({ html: '', css: '', js: '' });
+      }
     }
-  }, [currentTopic]);
-
-  useEffect(() => {
-    runCode();
-  }, [editorCode]);
+  }, [currentTopicData]);
 
   const checkAccess = () => {
     if (currentTopic === 0) return true;
@@ -370,42 +384,21 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
     return false;
   };
 
-  const runCode = () => {
-    const { html, css, js } = editorCode;
-    const fullCode = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>${css}</style>
-        </head>
-        <body>
-          ${html}
-          <script>
-            try {
-              ${js}
-            } catch (err) {
-              console.error(err);
-              document.body.innerHTML += '<div style="color:red;padding:10px;background:#ffeeee;margin-top:20px;border-radius:5px;">JS Error: ' + err.message + '</div>';
-            }
-          </script>
-        </body>
-      </html>
-    `;
-    setEditorOutput(fullCode);
-  };
-
   const runExerciseCode = () => {
     try {
+      const { html, css, js } = exerciseCode;
+      
       const consoleOutput = [];
       const mockConsole = {
         log: (...args) => consoleOutput.push(args.join(' ')),
-        error: (...args) => consoleOutput.push('Error: ' + args.join(' '))
+        error: (...args) => consoleOutput.push('Error: ' + args.join(' ')),
+        warn: (...args) => consoleOutput.push('Warn: ' + args.join(' '))
       };
       
-      const func = new Function('console', exerciseCode);
+      const func = new Function('console', js);
       func(mockConsole);
       
-      setExerciseOutput(consoleOutput.join('\n') || 'Kod uğurla icra edildi (output yoxdur)');
+      setExerciseOutput(consoleOutput.join('\n') || 'Kod uğurla icra edildi (console output yoxdur)');
       
       updateAnalysis('codingAttempts', {
         topicId: currentTopic + 1,
@@ -635,7 +628,6 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
   };
 
   const hasAccess = checkAccess();
-  const currentTopicData = topics[currentTopic];
 
   if (loading) {
     return <div className="loading-screen">Yüklənir...</div>;
@@ -686,6 +678,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
           {!hasAccess ? (
             <div className="access-lock">
               <div className="lock-icon">🔒</div>
+              {/* Hər zaman currentTopicData.title istifadə edilir */}
               <h2>Mövzu {currentTopic + 1}: {currentTopicData.title}</h2>
               <p>Bu mövzuya baxmaq üçün aktivləşdirmə kodu tələb olunur</p>
 
@@ -705,6 +698,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
             </div>
           ) : (
             <>
+              {/* TOPIC HEADER - Hər dəfə currentTopic dəyişəndə avtomatik yenilənir */}
               <div className="topic-header">
                 <h2>Mövzu {currentTopic + 1}: {currentTopicData.title}</h2>
                 <span className="duration">⏱️ {currentTopicData.duration}</span>
@@ -728,73 +722,55 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
                 )}
 
                 {activeTab === 'editor' && (
-                  <div className="code-editor-section">
-                    <div className="editor-tabs">
-                      {['html', 'css', 'js'].map(lang => (
-                        <button 
-                          key={lang}
-                          className={activeEditorTab === lang ? 'active' : ''}
-                          onClick={() => setActiveEditorTab(lang)}
-                        >
-                          {lang.toUpperCase()}
-                        </button>
-                      ))}
-                    </div>
-                    
-                    <div className="editor-panels">
-                      <div className="code-panel">
-                        <textarea
-                          value={editorCode[activeEditorTab]}
-                          onChange={(e) => setEditorCode({
-                            ...editorCode,
-                            [activeEditorTab]: e.target.value
-                          })}
-                          spellCheck="false"
-                        />
-                      </div>
-                      
-                      <div className="output-panel">
-                        <div className="panel-header">
-                          <span>Output</span>
-                          <button onClick={runCode} className="run-btn">▶ Run</button>
-                        </div>
-                        <iframe
-                          ref={iframeRef}
-                          srcDoc={editorOutput}
-                          title="output"
-                          sandbox="allow-scripts"
-                        />
-                      </div>
-                    </div>
-                  </div>
+                  <FReditor 
+                    code={editorCode}
+                    onChange={setEditorCode}
+                    height="600px"
+                    showPreview={true}
+                    showConsole={true}
+                  />
                 )}
 
                 {activeTab === 'exercise' && (
                   <div className="exercise-section">
-                    <h3>{currentTopicData.exercise.title}</h3>
-                    <p>{currentTopicData.exercise.description}</p>
-                    <div className="requirements">
-                      <h4>Tələblər:</h4>
-                      <ul>
-                        {currentTopicData.exercise.requirements.map((req, idx) => (
-                          <li key={idx}>{req}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div className="exercise-editor">
-                      <textarea
-                        value={exerciseCode}
-                        onChange={(e) => setExerciseCode(e.target.value)}
-                        placeholder="Kodunuzu buraya yazın..."
-                        spellCheck="false"
+                    <h3>{currentTopicData.exercise?.title || 'Tapşırıq'}</h3>
+                    <p>{currentTopicData.exercise?.description || 'Bu mövzu üçün tapşırıq təyin edilməyib.'}</p>
+                    
+                    {currentTopicData.exercise?.requirements && (
+                      <div className="requirements">
+                        <h4>Tələblər:</h4>
+                        <ul>
+                          {currentTopicData.exercise.requirements.map((req, idx) => (
+                            <li key={idx}>{req}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    <div className="exercise-editor-wrapper">
+                      <FReditor 
+                        code={exerciseCode}
+                        onChange={setExerciseCode}
+                        height="500px"
+                        showPreview={true}
+                        showConsole={true}
+                        onRun={runExerciseCode}
                       />
                     </div>
+                    
                     {exerciseOutput && (
                       <div className="exercise-output">
-                        <h4>Nəticə:</h4>
+                        <h4>Console Nəticə:</h4>
                         <pre>{exerciseOutput}</pre>
                       </div>
                     )}
+                    
+                    <button 
+                      onClick={runExerciseCode}
+                      className="run-exercise-btn"
+                    >
+                      ▶ Kodu Yoxla
+                    </button>
                   </div>
                 )}
 
@@ -803,7 +779,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
                     <h3>Quiz: {currentTopicData.title}</h3>
                     {!quizSubmitted ? (
                       <>
-                        {currentTopicData.quiz.map((q, idx) => (
+                        {currentTopicData.quiz?.map((q, idx) => (
                           <div key={idx} className="quiz-question">
                             <p className="question-text">{idx + 1}. {q.question}</p>
                             <div className="quiz-options">
@@ -824,14 +800,14 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
                         <button 
                           onClick={handleQuizSubmit}
                           className="submit-quiz-btn"
-                          disabled={Object.keys(quizAnswers).length !== currentTopicData.quiz.length}
+                          disabled={Object.keys(quizAnswers).length !== (currentTopicData.quiz?.length || 0)}
                         >
                           Quiz-i Təsdiqlə
                         </button>
                       </>
                     ) : (
                       <div className="quiz-results">
-                        <h4>Nəticə: {quizScore}/{currentTopicData.quiz.length}</h4>
+                        <h4>Nəticə: {quizScore}/{currentTopicData.quiz?.length || 0}</h4>
                         <div className={`score-message ${quizScore >= 7 ? 'success' : 'fail'}`}>
                           {quizScore >= 7 ? 'Təbriklər! Uğurla tamamladınız.' : 'Daha çox çalışmalısınız.'}
                         </div>
@@ -849,7 +825,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
         </main>
       </div>
 
-      {/* AI Chatbot - Lumina Frontend Müəllimi */}
+      {/* AI Chatbot */}
       <div className={`chatbot-container ${isChatOpen ? 'open' : ''}`}>
         <button 
           className="chatbot-toggle"

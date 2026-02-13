@@ -6,8 +6,8 @@ import {
   ChevronRight, 
   Clock, 
   PlayCircle,
-  CheckCircle2,
-  MessageCircle,
+  CheckCircle2, 
+  MessageCircle, 
   Twitter,
   Menu,
   X,
@@ -16,7 +16,11 @@ import {
   Shield,
   LogOut,
   Send,
-  Bot
+  Bot,
+  Target,
+  Heart,
+  Users,
+  Sparkles
 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth, db } from '../firebase';
@@ -207,17 +211,31 @@ const Home = () => {
       price: '12 AZN/ay',
       color: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
       topics: ['HTML5 & CSS3', 'JavaScript ES6+', 'React.js', 'Responsive Design', 'Git & GitHub'],
-      features: ['16 mövzu', '60+ praktika', '4 layihə', 'Mentor dəstəyi']
+      features: [
+        'Hər ay 20 mövzu',
+        'Hər mövzuya özəl test',
+        'Kod tapşırıqları',
+        'Video kömək',
+        'AI köməkçi',
+        'Real layihələr'
+      ]
     },
     {
       id: 'ai',
       icon: <Brain size={48} className="course-icon" />,
       title: 'Süni İntelekt',
       duration: '6 ay',
-      price: '15 AZN/ay',
+      price: '20 AZN/ay',
       color: 'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)',
       topics: ['Python', 'Machine Learning', 'Deep Learning', 'NLP', 'Computer Vision'],
-      features: ['24 mövzu', '80+ praktika', '6 layihə', 'Mentor dəstəyi']
+      features: [
+        'Hər ay 20 mövzu',
+        'Hər mövzuya özəl test',
+        'Kod tapşırıqları',
+        'Video kömək',
+        'AI köməkçi',
+        'Real layihələr'
+      ]
     }
   ];
 
@@ -230,7 +248,7 @@ const Home = () => {
     {
       number: '02',
       title: 'Kod Al',
-      desc: 'WhatsApp/Telegram vasitəsilə əlaqə saxla, ödənişini et və sənə unikal kod təsdiqlənsin.'
+      desc: 'WhatsApp (055 547 36 56) vasitəsilə əlaqə saxla, ödənişini et və sənə unikal kod təsdiqlənsin.'
     },
     {
       number: '03',
@@ -267,10 +285,33 @@ const Home = () => {
     }
   ];
 
+  const aboutFeatures = [
+    {
+      icon: <Target size={32} />,
+      title: 'Missiyamız',
+      desc: 'Azərbaycanda keyfiyyətli proqramlaşdırma təhsilini hər kəs üçün əlçatan etmək. Texnologiya dünyasına girişi asan və münasib qiymətli edirik.'
+    },
+    {
+      icon: <Heart size={32} />,
+      title: 'Dəyərlərimiz',
+      desc: 'Şəffaf qiymətlər, praktika yönümlü tədris, fərdi yanaşma. Hər tələbənin uğuru bizim uğurumuzdur.'
+    },
+    {
+      icon: <Users size={32} />,
+      title: 'Komandamız',
+      desc: 'Təcrübəli proqramçılar və müəllimlər. Real layihə təcrübəsi olan mütəxəssislər tərəfindən hazırlanmış kurikulum.'
+    },
+    {
+      icon: <Sparkles size={32} />,
+      title: 'Fərqimiz',
+      desc: 'AI dəstəkli öyrənmə, interaktiv kod editoru, hər mövzuda test və tapşırıqlar. Sadəcə video izləməklə kifayətlənməyin.'
+    }
+  ];
+
   const faqs = [
     {
       q: 'Kodu necə alıram?',
-      a: 'WhatsApp (050-XXX-XX-XX) və ya Telegram (@luminaedu) vasitəsilə əlaqə saxlayırsan. Ödənişini etdikdən sonra sənə unikal 8-simvollu kod göndəririk.'
+      a: 'WhatsApp (055 547 36 56) və ya Telegram (@luminaedu) vasitəsilə əlaqə saxlayırsan. Ödənişini etdikdən sonra sənə unikal 8-simvollu kod göndəririk.'
     },
     {
       q: 'Aylıq ödəniş necə işləyir?',
@@ -279,14 +320,6 @@ const Home = () => {
     {
       q: 'Kursu dondura bilərəmmi?',
       a: 'Bəli! 1 ay dondurma hüququ var. Məsələn, imtahanlarınız varsa, növbəti ayı ödəniş etmədən saxlaya bilərsiniz.'
-    },
-    {
-      q: 'Sertifikat verirsinizmi?',
-      a: 'Bəli, hər ayı tamamladıqda "Certificate of Completion" alırsan. 4 aylıq Frontend kursunu bitirdikdə isə tam sertifikat verilir.'
-    },
-    {
-      q: 'İşə düzəlməyə kömək edirsinizmi?',
-      a: 'Bəli! Son ayda CV review, LinkedIn optimallaşdırma və müsahibə hazırlığı dəstəyi veririk. Həmçinin partnyor şirkətlərə tövsiyə edirik.'
     }
   ];
 
@@ -322,6 +355,7 @@ const Home = () => {
           <div className={`nav-links ${isMenuOpen ? 'open' : ''}`}>
             <a href="#courses" className="nav-link">Kurslar</a>
             <a href="#how-it-works" className="nav-link">Necə İşləyir</a>
+            <a href="#about" className="nav-link">Haqqımızda</a>
             <a href="#features" className="nav-link">Üstünlüklər</a>
             <a href="#faq" className="nav-link">FAQ</a>
           </div>
@@ -466,6 +500,47 @@ const Home = () => {
         </div>
       </section>
 
+      {/* About Section - YENİ EKLENDİ */}
+      <section id="about" className="about-section">
+        <div className="section-header">
+          <span className="section-tag">HAQQIMIZDA</span>
+          <h2 className="section-title">Lumina Nədir?</h2>
+          <p className="section-subtitle">
+            Azərbaycanda proqramlaşdırma təhsilini sadə, əlçatan və effektiv edən təhsil platforması.
+          </p>
+        </div>
+        
+        <div className="about-content">
+          <div className="about-text">
+            <p className="about-description">
+              <strong>Lumina</strong> – bu, texnologiya dünyasına ilk addımı atanlar və biliklərini 
+              dərinləşdirmək istəyənlər üçün yaradılmış onlayn təhsil platformasıdır. 
+              Missiyamız keyfiyyətli proqramlaşdırma təhsilini hər kəs üçün əlçatan etməkdir.
+            </p>
+            <p className="about-description">
+              Biz inanırıq ki, yaxşı proqramçı olmaq üçün bahalı kurslara getmək və ya 
+              xarici dilləri mükəmməl bilmək lazım deyil. Ana dilində, sadə izahlarla, 
+              praktika yönümlü yanaşma ilə hər kəs proqramlaşdırma öyrənə bilər.
+            </p>
+            <p className="about-description">
+              Platformamızda hər mövzu üçün interaktiv kod editoru, testlər, praktiki 
+              tapşırıqlar və AI köməkçi var. Aylıq ödəniş sistemi ilə isə təhsilinizi 
+              öz tempinizdə, maliyyə yükü olmadan davam etdirə bilərsiniz.
+            </p>
+          </div>
+          
+          <div className="about-features-grid">
+            {aboutFeatures.map((feature, idx) => (
+              <div key={idx} className="about-feature-card">
+                <div className="about-feature-icon">{feature.icon}</div>
+                <h3 className="about-feature-title">{feature.title}</h3>
+                <p className="about-feature-desc">{feature.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Features */}
       <section id="features" className="features-section">
         <div className="section-header">
@@ -524,7 +599,7 @@ const Home = () => {
             <Link to="/signup" className="btn btn-large btn-white">
               Pulsuz Başla <ArrowRight size={20} />
             </Link>
-            <a href="https://wa.me/994501234567" target="_blank" rel="noopener noreferrer" className="btn btn-large btn-outline-white">
+            <a href="https://wa.me/994555473656" target="_blank" rel="noopener noreferrer" className="btn btn-large btn-outline-white">
               WhatsApp-la Yaz
             </a>
           </div>
@@ -556,12 +631,12 @@ const Home = () => {
             </div>
             <div className="footer-column">
               <h4>Şirkət</h4>
-              <a href="#">Haqqımızda</a>
-              <a href="#">Əlaqə</a>
+              <a href="#about">Haqqımızda</a>
+              <a href="https://wa.me/994555473656">Əlaqə</a>
             </div>
             <div className="footer-column">
               <h4>Dəstək</h4>
-              <a href="#">FAQ</a>
+              <a href="#faq">FAQ</a>
               <a href="mailto:salam@lumina.az">salam@lumina.az</a>
             </div>
           </div>

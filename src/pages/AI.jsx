@@ -16,16 +16,17 @@ import {
   Bot, 
   X, 
   Send, 
-  MessageCircle,
-  ChevronRight,
-  PlayCircle,
-  CheckCircle2,
-  Clock,
-  ArrowRight,
-  Zap,
-  Shield,
   Brain,
-  Code2
+  Menu,
+  ChevronRight,
+  Lock,
+  CheckCircle2,
+  PlayCircle,
+  BookOpen,
+  Code2,
+  FileEdit,
+  BarChart3,
+  Video
 } from 'lucide-react';
 import '../styles/AI.css';
 
@@ -53,6 +54,9 @@ import { topicai20 } from '../data/topicai20';
 
 import { aiVideoLinks } from '../data/aivideo';
 
+// Import Editor component
+import Editor from './Editor';
+
 const topics = [
   topicai1, topicai2, topicai3, topicai4, topicai5,
   topicai6, topicai7, topicai8, topicai9, topicai10,
@@ -64,6 +68,16 @@ const COURSE_ID = 'ai-python';
 
 // API Key
 const GROQ_API_KEY = process.env.REACT_APP_GROQ_API_KEY;
+
+// Navigation items for mobile menu
+const NAV_ITEMS = [
+  { id: 'content', icon: BookOpen, label: 'Məzmun', emoji: '📚' },
+  { id: 'editor', icon: Code2, label: 'Editor', emoji: '🐍' },
+  { id: 'exercise', icon: FileEdit, label: 'Tapşırıq', emoji: '✏️' },
+  { id: 'quiz', icon: PlayCircle, label: 'Quiz', emoji: '📝' },
+  { id: 'analysis', icon: BarChart3, label: 'Təhlil', emoji: '📊' },
+  { id: 'videos', icon: Video, label: 'Video', emoji: '🎥' },
+];
 
 const AI = () => {
   const [currentTopic, setCurrentTopic] = useState(0);
@@ -91,17 +105,15 @@ const AI = () => {
       statistics: 0
     }
   });
-  const [editorCode, setEditorCode] = useState('');
-  const [editorOutput, setEditorOutput] = useState('');
-  const [jupyterliteReady, setJupyterliteReady] = useState(false);
-  const [kernelStatus, setKernelStatus] = useState('disconnected');
-  const [executionCount, setExecutionCount] = useState(0);
   
   const [user, setUser] = useState(null);
   const [activationData, setActivationData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activationError, setActivationError] = useState('');
   const [currentMonth, setCurrentMonth] = useState(0);
+
+  // Mobile menu state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Chatbot state
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -115,10 +127,28 @@ const AI = () => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
 
-  const iframeRef = useRef(null);
-  const kernelRef = useRef(null);
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobileMenuOpen]);
 
-  // Chatbot funksiyaları
+  // Close mobile menu on escape key
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') setIsMobileMenuOpen(false);
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, []);
+
+  // Chatbot functions
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -136,7 +166,6 @@ const AI = () => {
     setIsTyping(true);
 
     try {
-      // API Key yoxlaması
       if (!GROQ_API_KEY || GROQ_API_KEY === "YOUR_API_KEY_HERE") {
         throw new Error('API açarı təyin edilməyib');
       }
@@ -211,58 +240,6 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
       sendMessage();
     }
   };
-
-  // JupyterLite kernel initialization
-  useEffect(() => {
-    const initJupyterLite = async () => {
-      try {
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/@jupyterlite/kernel@0.2.0/dist/index.js';
-        script.async = true;
-        script.onload = async () => {
-          try {
-            const kernel = new window.jupyterlite.Kernel({
-              name: 'python',
-              location: 'default'
-            });
-            
-            await kernel.ready;
-            kernelRef.current = kernel;
-            setJupyterliteReady(true);
-            setKernelStatus('ready');
-            
-            kernel.registerCommTarget('stdout', (comm, msg) => {
-              comm.onMsg = (msg) => {
-                const content = msg.content.data;
-                if (content.text) {
-                  setEditorOutput(prev => prev + content.text);
-                }
-                if (content.image) {
-                  setEditorOutput(prev => prev + '\n[Şəkil yaradıldı]\n');
-                }
-              };
-            });
-            
-          } catch (err) {
-            console.error('Kernel init error:', err);
-            setKernelStatus('error');
-          }
-        };
-        document.body.appendChild(script);
-      } catch (error) {
-        console.error('JupyterLite yükləmə xətası:', error);
-        setKernelStatus('error');
-      }
-    };
-
-    initJupyterLite();
-    
-    return () => {
-      if (kernelRef.current) {
-        kernelRef.current.dispose();
-      }
-    };
-  }, []);
 
   // Auth state listener
   useEffect(() => {
@@ -423,10 +400,8 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
   useEffect(() => {
     const topic = topics[currentTopic];
     if (topic && topic.starterCode) {
-      setEditorCode(topic.starterCode.python || '');
       setExerciseCode(topic.exercise?.starterCode || '');
     }
-    setEditorOutput('');
   }, [currentTopic]);
 
   const checkAccess = () => {
@@ -435,123 +410,23 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
     return false;
   };
 
-  const runPythonCode = async () => {
-    if (!kernelRef.current || kernelStatus !== 'ready') {
-      setEditorOutput('JupyterLite kernel hazır deyil... Zəhmət olmasa gözləyin.');
-      return;
-    }
-
-    setEditorOutput('');
-    setExecutionCount(prev => prev + 1);
-    
-    try {
-      const future = kernelRef.current.requestExecute({
-        code: editorCode
-      });
-      
-      let output = '';
-      
-      future.onIOPub = (msg) => {
-        const msgType = msg.header.msg_type;
-        const content = msg.content;
-        
-        if (msgType === 'stream') {
-          output += content.text;
-          setEditorOutput(prev => prev + content.text);
-        } else if (msgType === 'execute_result') {
-          const result = content.data['text/plain'];
-          if (result) {
-            output += result + '\n';
-            setEditorOutput(prev => prev + result + '\n');
-          }
-        } else if (msgType === 'error') {
-          const errorMsg = content.traceback.join('\n');
-          output += 'Xəta:\n' + errorMsg;
-          setEditorOutput(prev => prev + 'Xəta:\n' + errorMsg);
-        } else if (msgType === 'display_data') {
-          if (content.data['image/png']) {
-            const imgData = 'data:image/png;base64,' + content.data['image/png'];
-            output += '[Matplotlib şəkli]\n';
-            setEditorOutput(prev => prev + '[Matplotlib şəkli]\n');
-            const img = document.createElement('img');
-            img.src = imgData;
-            img.style.maxWidth = '100%';
-            img.style.marginTop = '10px';
-            const outputPanel = document.querySelector('.python-output');
-            if (outputPanel) {
-              outputPanel.appendChild(img);
-            }
-          }
-        }
-      };
-      
-      await future.done;
-      
-      if (!output) {
-        setEditorOutput('Kod uğurla icra edildi (output yoxdur)');
-      }
-      
-    } catch (error) {
-      setEditorOutput('JupyterLite Xətası:\n' + error.message);
-    }
+  // Handle topic selection from mobile menu
+  const handleTopicSelect = (idx) => {
+    setCurrentTopic(idx);
+    setQuizSubmitted(false);
+    setQuizAnswers({});
+    setActiveTab('content');
+    setIsMobileMenuOpen(false);
   };
 
-  const runExerciseCode = async () => {
-    if (!kernelRef.current || kernelStatus !== 'ready') {
-      setExerciseOutput('JupyterLite kernel hazır deyil...');
-      return;
-    }
-
-    try {
-      setExerciseOutput('');
-      
-      const future = kernelRef.current.requestExecute({
-        code: exerciseCode
-      });
-      
-      let output = '';
-      
-      future.onIOPub = (msg) => {
-        const msgType = msg.header.msg_type;
-        const content = msg.content;
-        
-        if (msgType === 'stream') {
-          output += content.text;
-        } else if (msgType === 'execute_result') {
-          output += content.data['text/plain'] + '\n';
-        } else if (msgType === 'error') {
-          output += 'Xəta:\n' + content.traceback.join('\n');
-        }
-      };
-      
-      await future.done;
-      
-      setExerciseOutput(output || 'Kod uğurla icra edildi');
-      
-      updateAnalysis('codingAttempts', {
-        topicId: currentTopic + 1,
-        timestamp: new Date().toISOString(),
-        success: !output.includes('Xəta:')
-      });
-      
-      if (!output.includes('Xəta:')) {
-        updateSkillScore(currentTopic);
-      }
-      
-    } catch (error) {
-      setExerciseOutput('Xəta: ' + error.message);
-      updateAnalysis('codingAttempts', {
-        topicId: currentTopic + 1,
-        timestamp: new Date().toISOString(),
-        success: false,
-        error: error.message
-      });
-    }
+  // Handle tab selection from mobile menu
+  const handleTabSelect = (tabId) => {
+    setActiveTab(tabId);
+    setIsMobileMenuOpen(false);
   };
 
-  const clearEditor = () => {
-    setEditorCode('');
-    setEditorOutput('');
+  const runExerciseCode = async (code) => {
+    setExerciseCode(code);
   };
 
   const updateSkillScore = (topicIndex) => {
@@ -688,14 +563,14 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
         <div className="stats-grid">
           <div className="stat-card">
             <h4>Ümumi Progress</h4>
-            <div className="progress-circle" style={{width: '120px', height: '120px'}}>
+            <div className="progress-circle">
               <span>{monthly.topicsCompleted}/{monthly.totalTopics}</span>
-              <small>Mövzu tamamlanıb</small>
+              <small>Mövzu</small>
             </div>
           </div>
           
           <div className="stat-card">
-            <h4>Ortalama Quiz Balı</h4>
+            <h4>Ortalama Quiz</h4>
             <div className="score-display">{monthly.averageQuizScore}%</div>
           </div>
           
@@ -707,16 +582,13 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
         </div>
 
         <div className="skills-radar">
-          <h4>Python Bacarıq Xəritəsi</h4>
+          <h4>Python Bacarıqlar</h4>
           <div className="radar-grid">
             {skills.map((skill, idx) => (
               <div key={idx} className="skill-bar">
                 <span className="skill-name">{skill.name}</span>
                 <div className="skill-track">
-                  <div 
-                    className="skill-fill" 
-                    style={{width: skill.value + '%'}}
-                  />
+                  <div className="skill-fill" style={{width: skill.value + '%'}}/>
                 </div>
                 <span className="skill-value">{skill.value}%</span>
               </div>
@@ -730,10 +602,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
             <div key={idx} className="week-bar">
               <span>Həftə {week.week}</span>
               <div className="progress-track">
-                <div 
-                  className="progress-fill" 
-                  style={{width: week.percentage + '%'}}
-                />
+                <div className="progress-fill" style={{width: week.percentage + '%'}}/>
               </div>
               <span>{week.completed}/{week.total}</span>
             </div>
@@ -741,7 +610,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
         </div>
 
         <div className="topic-breakdown">
-          <h4>Mövzu üzrə Detallar</h4>
+          <h4>Mövzu Detalları</h4>
           <div className="topic-status-grid">
             {topics.map((topic, idx) => {
               const isCompleted = analysisData.completedTopics.includes(idx + 1);
@@ -760,7 +629,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
                       {Math.round((quizData.score / quizData.total) * 100)}%
                     </span>
                   )}
-                  {isCompleted && <span className="checkmark">✓</span>}
+                  {isCompleted && <CheckCircle2 size={16} className="check-icon"/>}
                 </div>
               );
             })}
@@ -784,15 +653,15 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
             return (
               <div key={level} className={'video-category ' + level}>
                 <h4>
-                  {level === 'beginner' && 'Başlanğıc Səviyyə'}
-                  {level === 'intermediate' && 'Orta Səviyyə'}
-                  {level === 'advanced' && 'İrəliləmiş Səviyyə'}
+                  {level === 'beginner' && 'Başlanğıc'}
+                  {level === 'intermediate' && 'Orta'}
+                  {level === 'advanced' && 'İrəliləmiş'}
                 </h4>
                 <div className="video-list">
                   {levelVideos.map((video, idx) => (
                     <div key={idx} className="video-item">
                       <div className="video-thumbnail">
-                        <span className="play-icon">▶</span>
+                        <PlayCircle size={24}/>
                       </div>
                       <div className="video-info">
                         <h5>{video.title}</h5>
@@ -819,6 +688,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
 
   const hasAccess = checkAccess();
   const currentTopicData = topics[currentTopic];
+  const completedCount = analysisData.completedTopics.length;
 
   if (loading) {
     return <div className="loading-screen">Yüklənir...</div>;
@@ -826,40 +696,153 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
 
   return (
     <div className="ai-course">
+      {/* Header with Hamburger */}
       <header className="course-header">
-        <h1>🤖 Python AI & Data Science Kursu</h1>
+        <div className="header-left">
+          <button 
+            className={`hamburger-btn ${isMobileMenuOpen ? 'active' : ''}`}
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="Menyu"
+            aria-expanded={isMobileMenuOpen}
+          >
+            <span className="hamburger-line"></span>
+            <span className="hamburger-line"></span>
+            <span className="hamburger-line"></span>
+            {completedCount > 0 && <span className="menu-badge">{completedCount}</span>}
+          </button>
+          
+          <h1>🤖 Python AI Kursu</h1>
+        </div>
+        
         <div className="header-actions">
           <a href="/" className="home-btn">🏠 Ana Səhifə</a>
           {isActivated ? (
-            <span className="badge activated">✓ Aktiv (Ay {currentMonth})</span>
+            <span className="badge activated">✓ Aktiv</span>
           ) : (
             <span className="badge inactive">🔒 Deaktiv</span>
           )}
         </div>
       </header>
 
+      {/* Mobile Menu Overlay */}
+      <div 
+        className={`menu-overlay ${isMobileMenuOpen ? 'active' : ''}`}
+        onClick={() => setIsMobileMenuOpen(false)}
+        aria-hidden="true"
+      />
+
+      {/* Mobile Menu Drawer */}
+      <nav className={`mobile-menu-drawer ${isMobileMenuOpen ? 'active' : ''}`}>
+        <div className="drawer-header">
+          <div className="drawer-brand">
+            <div className="drawer-brand-icon">🤖</div>
+            <div className="drawer-brand-text">
+              <h2>AI Kursu</h2>
+              <p>Mövzu {currentTopic + 1} / 20</p>
+            </div>
+          </div>
+          <button 
+            className="close-drawer"
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-label="Bağla"
+          >
+            <X size={24}/>
+          </button>
+        </div>
+
+        <div className="drawer-content">
+          {/* Navigation Section */}
+          <div className="drawer-section">
+            <div className="drawer-section-title">🧭 Naviqasiya</div>
+            <div className="drawer-nav">
+              {NAV_ITEMS.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    className={`drawer-nav-item ${activeTab === item.id ? 'active' : ''}`}
+                    onClick={() => handleTabSelect(item.id)}
+                  >
+                    <span className="drawer-nav-icon">{item.emoji}</span>
+                    <span className="drawer-nav-label">{item.label}</span>
+                    {activeTab === item.id && <ChevronRight size={18} className="chevron"/>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Topics Section */}
+          <div className="drawer-section">
+            <div className="drawer-section-title">📖 AI Mövzuları ({topics.length})</div>
+            <div className="drawer-topics">
+              {topics.map((topic, idx) => {
+                const isCompleted = analysisData.completedTopics.includes(idx + 1);
+                const quizData = analysisData.quizScores.find(q => q.topicId === idx + 1);
+                const isLocked = !isActivated && idx !== 0;
+                const isActive = currentTopic === idx;
+                
+                return (
+                  <button
+                    key={idx}
+                    className={`drawer-topic-item ${isActive ? 'active' : ''} ${isLocked ? 'locked' : ''}`}
+                    onClick={() => !isLocked && handleTopicSelect(idx)}
+                    disabled={isLocked}
+                  >
+                    <div className="topic-main">
+                      <span className={`drawer-topic-number ${isActive ? 'active' : ''}`}>
+                        {idx + 1}
+                      </span>
+                      <span className="drawer-topic-name">{topic.title}</span>
+                    </div>
+                    <div className="drawer-topic-badge">
+                      {idx === 0 && <span className="free-badge">FREE</span>}
+                      {isLocked && <Lock size={16} className="lock-icon"/>}
+                      {!isLocked && quizData && !isCompleted && (
+                        <span className="progress-badge">
+                          {Math.round((quizData.score / quizData.total) * 100)}%
+                        </span>
+                      )}
+                      {isCompleted && <CheckCircle2 size={20} className="completed-badge"/>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Drawer Footer */}
+        <div className="drawer-footer">
+          <div className={`drawer-status ${isActivated ? 'active' : ''}`}>
+            <span>{isActivated ? '✅' : '🔓'}</span>
+            <span>{isActivated ? 'Kurs Aktivdir' : 'İlk mövzu pulsuzdur'}</span>
+          </div>
+        </div>
+      </nav>
+
+      {/* Desktop Sidebar */}
       <div className="course-layout">
-        <aside className="topics-sidebar">
-          <h3>AI Mövzuları</h3>
-          <div className="topics-list">
+        <aside className="desktop-sidebar">
+          <div className="desktop-sidebar-header">
+            <h3>📚 AI Mövzuları</h3>
+          </div>
+          <div className="desktop-topics-list">
             {topics.map((topic, idx) => (
               <button
                 key={idx}
-                className={'topic-item ' + (currentTopic === idx ? 'active' : '') + (idx === 0 ? ' free' : '')}
+                className={`desktop-topic-item ${currentTopic === idx ? 'active' : ''}`}
                 onClick={() => {
                   setCurrentTopic(idx);
                   setQuizSubmitted(false);
                   setQuizAnswers({});
                   setActiveTab('content');
-                  setEditorOutput('');
                 }}
               >
                 <span className="topic-number">{idx + 1}</span>
                 <span className="topic-name">{topic.title}</span>
-                {idx === 0 && <span className="free-badge">PULSUZ</span>}
-                {!isActivated && idx !== 0 && <span className="lock-icon-small">🔒</span>}
                 {analysisData.completedTopics.includes(idx + 1) && (
-                  <span className="completed-icon">✓</span>
+                  <CheckCircle2 size={16} className="check-icon"/>
                 )}
               </button>
             ))}
@@ -867,6 +850,19 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
         </aside>
 
         <main className="content-area">
+          {/* Desktop Tabs */}
+          <div className="desktop-tabs">
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                className={activeTab === item.id ? 'active' : ''}
+                onClick={() => setActiveTab(item.id)}
+              >
+                {item.emoji} {item.label}
+              </button>
+            ))}
+          </div>
+
           {!hasAccess ? (
             <div className="access-lock">
               <div className="lock-icon">🔒</div>
@@ -883,7 +879,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
                 <button onClick={() => activateCourse(accessCode)}>Aktivləşdir</button>
                 {activationError && <p className="error-text">{activationError}</p>}
                 <p className="help-text">
-                  Nümunə kod formatı: AI2024 (sadəcə nümunədir, aktivləşdirmir)
+                  Nümunə kod formatı: AI2024
                 </p>
               </div>
             </div>
@@ -894,80 +890,17 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
                 <span className="duration">⏱️ {currentTopicData.duration}</span>
               </div>
 
-              <div className="tabs">
-                <button className={activeTab === 'content' ? 'active' : ''} onClick={() => setActiveTab('content')}>📚 Məzmun</button>
-                <button className={activeTab === 'editor' ? 'active' : ''} onClick={() => setActiveTab('editor')}>🐍 JupyterLite Editor</button>
-                <button className={activeTab === 'exercise' ? 'active' : ''} onClick={() => setActiveTab('exercise')}>✏️ Tapşırıq</button>
-                <button className={activeTab === 'quiz' ? 'active' : ''} onClick={() => setActiveTab('quiz')}>📝 Quiz</button>
-                <button className={activeTab === 'analysis' ? 'active' : ''} onClick={() => setActiveTab('analysis')}>📊 Təhlil</button>
-                <button className={activeTab === 'videos' ? 'active' : ''} onClick={() => setActiveTab('videos')}>🎥 Video Kömək</button>
-              </div>
-
               <div className="tab-content">
                 {activeTab === 'content' && (
-                  <div 
-                    className="content-html"
-                    dangerouslySetInnerHTML={{ __html: currentTopicData.content }}
-                  />
+                  <div className="content-html" dangerouslySetInnerHTML={{ __html: currentTopicData.content }} />
                 )}
 
                 {activeTab === 'editor' && (
-                  <div className="code-editor-section python-editor">
-                    <div className="editor-header">
-                      <span className="editor-title">🐍 JupyterLite Python Editor</span>
-                      <div className="editor-actions">
-                        <div className="kernel-status">
-                          Kernel: <span className={'status-' + kernelStatus}>{kernelStatus}</span>
-                        </div>
-                        <button onClick={clearEditor} className="clear-editor-btn" title="Editörü təmizlə">
-                          🗑️ Təmizlə
-                        </button>
-                        <button 
-                          onClick={runPythonCode} 
-                          className="run-btn"
-                          disabled={!jupyterliteReady || kernelStatus !== 'ready'}
-                        >
-                          {!jupyterliteReady ? '⏳ Yüklənir...' : '▶ Run Python'}
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {kernelStatus === 'error' && (
-                      <div className="kernel-error">
-                        ⚠️ JupyterLite kernel xətası. Səhifəni yeniləyin.
-                      </div>
-                    )}
-                    
-                    <div className="editor-panels">
-                      <div className="code-panel">
-                        <textarea
-                          value={editorCode}
-                          onChange={(e) => setEditorCode(e.target.value)}
-                          placeholder="# Python kodunuzu buraya yazın...&#10;# NumPy, Pandas, Matplotlib, Scikit-learn dəstəklənir"
-                          spellCheck="false"
-                          className="python-code"
-                        />
-                      </div>
-                      
-                      <div className="output-panel">
-                        <div className="panel-header">
-                          <span>Output [In [{executionCount}]:</span>
-                          <button onClick={() => setEditorOutput('')} className="clear-btn">Təmizlə</button>
-                        </div>
-                        <pre className="python-output">
-                          {editorOutput || 'Kodu icra etmək üçün "Run Python" düyməsinə basın...'}
-                        </pre>
-                      </div>
-                    </div>
-                    
-                    {!jupyterliteReady && (
-                      <div className="jupyterlite-loading">
-                        <p>JupyterLite kernel yüklənir... (Bu bir neçə saniyə çəkə bilər)</p>
-                        <div className="loading-bar"></div>
-                        <p className="loading-note">NumPy, Pandas, Matplotlib, Scikit-learn avtomatik yüklənəcək</p>
-                      </div>
-                    )}
-                  </div>
+                  <Editor 
+                    mode="editor"
+                    starterCode={currentTopicData.starterCode?.python || ''}
+                    onCodeRun={(output) => {}}
+                  />
                 )}
 
                 {activeTab === 'exercise' && (
@@ -982,22 +915,21 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
                         ))}
                       </ul>
                     </div>
-                    <div className="exercise-editor">
-                      <textarea
-                        value={exerciseCode}
-                        onChange={(e) => setExerciseCode(e.target.value)}
-                        placeholder="# Tapşırıq kodunuzu buraya yazın..."
-                        spellCheck="false"
-                        className="python-code"
-                      />
-                      <button 
-                        onClick={runExerciseCode} 
-                        className="run-exercise-btn"
-                        disabled={!jupyterliteReady || kernelStatus !== 'ready'}
-                      >
-                        {!jupyterliteReady ? '⏳ Yüklənir...' : 'Tapşırığı Yoxla'}
-                      </button>
-                    </div>
+                    <Editor 
+                      mode="exercise"
+                      starterCode={exerciseCode}
+                      onCodeRun={(output) => {
+                        setExerciseOutput(output);
+                        updateAnalysis('codingAttempts', {
+                          topicId: currentTopic + 1,
+                          timestamp: new Date().toISOString(),
+                          success: !output.includes('Xəta:')
+                        });
+                        if (!output.includes('Xəta:')) {
+                          updateSkillScore(currentTopic);
+                        }
+                      }}
+                    />
                     {exerciseOutput && (
                       <div className="exercise-output">
                         <h4>Nəticə:</h4>
@@ -1017,10 +949,10 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
                             <p className="question-text">{idx + 1}. {q.question}</p>
                             <div className="quiz-options">
                               {q.options.map((opt, optIdx) => (
-                                <label key={optIdx} className="quiz-option">
+                                <label key={optIdx} className={`quiz-option ${quizAnswers[idx] === optIdx ? 'selected' : ''}`}>
                                   <input
                                     type="radio"
-                                    name={'question-' + idx}
+                                    name={`question-${idx}`}
                                     checked={quizAnswers[idx] === optIdx}
                                     onChange={() => setQuizAnswers({ ...quizAnswers, [idx]: optIdx })}
                                   />
@@ -1041,7 +973,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
                     ) : (
                       <div className="quiz-results">
                         <h4>Nəticə: {quizScore}/{currentTopicData.quiz.length}</h4>
-                        <div className={'score-message ' + (quizScore >= 7 ? 'success' : 'fail')}>
+                        <div className={`score-message ${quizScore >= 7 ? 'success' : 'fail'}`}>
                           {quizScore >= 7 ? 'Təbriklər! Uğurla tamamladınız.' : 'Daha çox çalışmalısınız.'}
                         </div>
                         <button onClick={() => setQuizSubmitted(false)} className="retry-btn">Yenidən Cəhd Et</button>
@@ -1058,12 +990,12 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
         </main>
       </div>
 
-      {/* AI Chatbot - Lumina Təhsil Köməkçisi */}
-      <div className={'chatbot-container ' + (isChatOpen ? 'open' : '')}>
+      {/* Chatbot */}
+      <div className={`chatbot-container ${isChatOpen ? 'open' : ''}`}>
         <button 
           className="chatbot-toggle"
           onClick={() => setIsChatOpen(!isChatOpen)}
-          title="AI Müəllim ilə söhbət et"
+          title="AI Müəllim"
         >
           {isChatOpen ? <X size={24} /> : <Bot size={28} />}
         </button>
@@ -1075,12 +1007,14 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
                 <Brain size={20} />
                 <span>Lumina AI Müəllim</span>
               </div>
-              <p className="chatbot-subtitle">Python & Data Science Dəstəyi</p>
+              <button className="close-chat" onClick={() => setIsChatOpen(false)}>
+                <X size={20} />
+              </button>
             </div>
 
             <div className="chatbot-messages">
               {messages.map((msg, idx) => (
-                <div key={idx} className={'message ' + msg.role}>
+                <div key={idx} className={`message ${msg.role}`}>
                   <div className="message-content">
                     {msg.content.split('\n').map((line, i) => (
                       <p key={i}>{line}</p>
