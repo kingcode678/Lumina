@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 const Editor = () => {
-  const [code, setCode] = useState(`# Qrafik Testi\nimport matplotlib.pyplot as plt\nimport numpy as np\n\nx = np.linspace(0, 10, 100)\ny = np.sin(x)\n\nplt.figure(figsize=(7, 4))\nplt.plot(x, y, color='#00ff00') # Konsol yaşılı\nplt.title("Sinus Dalğası", color='white')\nplt.show()`);
+  const [code, setCode] = useState(`import pandas as pd\n# Kompyuterdən fayl yüklədikdən sonra adını aşağıda yazın\ntry:\n    df = pd.read_csv("fayl_adi.csv")\n    print(df.head())\nexcept:\n    print("Fayl tapılmadı. Zəhmət olmasa fayl seçin.")`);
   const [output, setOutput] = useState('Sistem başladılır...');
   const [plotUrl, setPlotUrl] = useState(null);
   const [isReady, setIsReady] = useState(false);
@@ -18,53 +18,85 @@ const Editor = () => {
           await new Promise((res) => script.onload = res);
         }
         pyodideRef.current = await window.loadPyodide();
-        await pyodideRef.current.loadPackage(['numpy', 'pandas', 'matplotlib', 'micropip']);
-        const micropip = pyodideRef.current.pyimport("micropip");
-        await micropip.install("seaborn");
         setIsReady(true);
-        setOutput('Sistem hazırdır. Kodunuzu yazın.');
-      } catch (err) {
-        setOutput("Xəta: " + err.message);
-      }
+        setOutput('Sistem hazırdır.');
+      } catch (err) { setOutput("Xəta: " + err.message); }
     };
     initPython();
   }, []);
 
+  // --- YENİ: Faylı Kompyuterdən Virtual Yaddaşa Yükləyən Funksiya ---
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file || !isReady) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const content = event.target.result;
+      try {
+        // Faylı Pyodide-ın virtual fayl sisteminə (FS) yazırıq
+        pyodideRef.current.FS.writeFile(file.name, content);
+        setOutput(`'${file.name}' uğurla yükləndi. İndi Python-da bu adla müraciət edə bilərsiniz.`);
+      } catch (err) {
+        setOutput("Fayl yükləmə xətası: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const runCode = async () => {
     if (!isReady) return;
     setOutput('İcra olunur...\n');
-    setPlotUrl(null); 
+    setPlotUrl(null);
     
     try {
+      if (code.includes('import matplotlib') || code.includes('import plt')) {
+        setOutput('Matplotlib yüklənir...\n');
+        await pyodideRef.current.loadPackage('matplotlib');
+      }
+      if (code.includes('import numpy') || code.includes('import np')) {
+        setOutput(prev => prev + 'Numpy yüklənir...\n');
+        await pyodideRef.current.loadPackage('numpy');
+      }
+      if (code.includes('import pandas') || code.includes('import pd')) {
+        setOutput(prev => prev + 'Pandas yüklənir...\n');
+        await pyodideRef.current.loadPackage('pandas');
+      }
+
       await pyodideRef.current.runPythonAsync(`
 import sys, io, base64
-import matplotlib.pyplot as plt
 from js import prompt
 
 sys.stdout = io.StringIO()
 
-def get_plot():
-    if plt.get_fignums():
-        buf = io.BytesIO()
-        # Fonu şəffaf edirik ki, konsolun qara fonuna tam otursun
-        plt.savefig(buf, format='png', bbox_inches='tight', transparent=True)
-        buf.seek(0)
-        img_str = base64.b64encode(buf.read()).decode('utf-8')
-        plt.close('all')
-        return img_str
-    return None
-
 import builtins
-builtins.input = lambda msg="": prompt(msg) or ""
+def safe_input(msg=""):
+    res = prompt(msg)
+    return str(res) if res is not None else ""
+builtins.input = safe_input
+
+def get_plot():
+    try:
+        import matplotlib.pyplot as plt
+        if plt.get_fignums():
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png', bbox_inches='tight', transparent=True)
+            img_str = base64.b64encode(buf.getvalue()).decode('utf-8')
+            plt.close('all')
+            return img_str
+    except:
+        pass
+    return None
       `);
-      
+
       await pyodideRef.current.runPythonAsync(code);
-      const stdout = pyodideRef.current.runPython("sys.stdout.getvalue()");
-      setOutput(stdout || "İcra olundu.");
       
+      const stdout = pyodideRef.current.runPython("sys.stdout.getvalue()");
       const imgData = pyodideRef.current.runPython("get_plot()");
+      
+      setOutput(stdout || "İcra olundu.");
       if (imgData) {
-        setPlotUrl(`data:image/png;base64,${imgData}`);
+        setPlotUrl("data:image/png;base64," + imgData);
       }
       
     } catch (err) {
@@ -73,36 +105,31 @@ builtins.input = lambda msg="": prompt(msg) or ""
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '600px', background: '#1e1e1e', borderRadius: '10px', border: '1px solid #444', overflow: 'hidden', fontFamily: 'monospace' }}>
-      <div style={{ padding: '10px 20px', background: '#2d2d2d', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ color: '#00ff00', fontSize: '12px' }}>PYTHON 3.11 - WEB TERMINAL</span>
-        <button onClick={runCode} disabled={!isReady} style={{ background: isReady ? '#2ea44f' : '#555', color: 'white', border: 'none', padding: '5px 15px', borderRadius: '4px', cursor: 'pointer' }}>
-          {isReady ? 'RUN' : 'Yüklənir...'}
-        </button>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '600px', background: '#1e1e1e', borderRadius: '10px', border: '1px solid #444', overflow: 'hidden' }}>
+      <div style={{ padding: '10px', background: '#2d2d2d', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <span style={{ color: '#00ff00', fontSize: '12px', fontFamily: 'monospace' }}>PYTHON DYNAMIC LAB</span>
+          {/* FAYL YÜKLƏMƏ DÜYMƏSİ */}
+          <input 
+            type="file" 
+            onChange={handleFileUpload} 
+            style={{ color: '#aaa', fontSize: '11px', width: '200px' }} 
+          />
+        </div>
+        <button onClick={runCode} style={{ background: '#2ea44f', color: 'white', border: 'none', padding: '5px 15px', cursor: 'pointer', borderRadius: '4px', fontWeight: 'bold' }}>RUN</button>
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         <textarea
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          style={{ flex: 1, background: '#1e1e1e', color: '#d4d4d4', padding: '15px', fontSize: '14px', border: 'none', outline: 'none', resize: 'none' }}
+          style={{ flex: 1, background: '#1e1e1e', color: '#d4d4d4', padding: '15px', border: 'none', outline: 'none', resize: 'none', fontFamily: 'monospace', fontSize: '14px' }}
           spellCheck="false"
         />
         
-        {/* KONSOL SAHƏSİ */}
         <div style={{ flex: 1, background: '#000', padding: '15px', overflowY: 'auto', borderLeft: '1px solid #333' }}>
-          <pre style={{ color: '#00ff00', margin: 0, whiteSpace: 'pre-wrap', fontSize: '13px' }}>
-            {output}
-          </pre>
-          
-          {/* Qrafik birbaşa mətndən sonra gəlir */}
-          {plotUrl && (
-            <img 
-              src={plotUrl} 
-              alt="Plot" 
-              style={{ maxWidth: '100%', marginTop: '10px', display: 'block' }} 
-            />
-          )}
+          <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '13px', color: '#00ff00', fontFamily: 'monospace' }}>{output}</pre>
+          {plotUrl && <img src={plotUrl} alt="Plot" style={{ maxWidth: '100%', marginTop: '10px', display: 'block' }} />}
         </div>
       </div>
     </div>

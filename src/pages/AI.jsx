@@ -26,7 +26,9 @@ import {
   Code2,
   FileEdit,
   BarChart3,
-  Video
+  Video,
+  Play,
+  ExternalLink
 } from 'lucide-react';
 import '../styles/AI.css';
 
@@ -52,8 +54,6 @@ import { topicai18 } from '../data/topicai18';
 import { topicai19 } from '../data/topicai19';
 import { topicai20 } from '../data/topicai20';
 
-import { aiVideoLinks } from '../data/aivideo';
-
 // Import Editor component
 import Editor from './Editor';
 
@@ -77,6 +77,292 @@ const NAV_ITEMS = [
   { id: 'quiz', icon: PlayCircle, label: 'Quiz', emoji: '📝' },
   { id: 'analysis', icon: BarChart3, label: 'Təhlil', emoji: '📊' },
   { id: 'videos', icon: Video, label: 'Video', emoji: '🎥' },
+];
+
+// AI Course Video Links Configuration - BURA ÖZ LİNKLƏRİNİ YAZ
+const aiVideoLinks = [
+  // Topic 1: Python Variables and Data Types
+  {
+    topicId: 1,
+    title: "Python Dəyişənləri",
+    duration: "15:30",
+    url: "https://youtu.be/V1c0MzR8qo8?si=VTQFIcaakZHEgdCv" // <- BURA LİNK YAZ: misal: "https://youtube.com/watch?v=..."
+  },
+  {
+    topicId: 1,
+    title: "Python Məlumat Tipləri",
+    duration: "12:45",
+    url: "https://youtu.be/L2Ryd70pVXI?si=9iDC00hct2RHUxHM" // <- BURA LİNK YAZ
+  },
+  
+  // Topic 2: List, Tuple, Dictionary and Set
+  {
+    topicId: 2,
+    title: "Set ve Tuple",
+    duration: "18:20",
+    url: "https://youtu.be/OMwQ_i9GJbI?si=3UJH1fepGsU1bGvM" // <- BURA LİNK YAZ
+  },
+  {
+    topicId: 2,
+    title: "List",
+    duration: "16:50",
+    url: "https://youtu.be/pBMuc4cc_Ck?si=lgfUe58fWOXJFmAC" // <- BURA LİNK YAZ
+  },
+
+
+  {
+    topicId: 2,
+    title: "Dictionary",
+    duration: "12:30",
+    url: "https://youtu.be/0jKOxXn7yMg?si=z7Q8jpACJ1gf9BCN"   // <- Bura Link Yaz
+  },
+
+  
+  // Topic 3: Conditional Operators
+  {
+    topicId: 3,
+    title: "Şərt Operatorları",
+    duration: "14:15",
+    url: "https://youtu.be/R6DmpXky2WA?si=bpTWg7WpUfkIPtbt" // <- BURA LİNK YAZ
+  },
+  {
+    topicId: 3,
+    title: "Şərt Operatorları : İç-içə Şərtlər",
+    duration: "17:30",
+    url: "https://youtu.be/gbNRVvPdSa0?si=UdQ6KZUWT-8OBh60" // <- BURA LİNK YAZ
+  },
+  
+  // Topic 4: Loops
+  {
+    topicId: 4,
+    title: "Dövrlər : For və While Dövrləri",
+    duration: "19:45",
+    url: "https://youtu.be/JUsemOXDvjY?si=axD0VxWozQFym2DK" // <- BURA LİNK YAZ
+  },
+  
+  // Topic 5: Functions
+  {
+    topicId: 5,
+    title: "Funksiyalar",
+    duration: "22:10",
+    url: "https://youtu.be/_HRn8zB47cs?si=oHTLBbs3EWrQ7_Uu" // <- BURA LİNK YAZ
+  },
+  {
+    topicId: 5,
+    title: "Lambda və Map Funksiyaları : Anonim Funksiyalar",
+    duration: "13:40",
+    url: "https://youtu.be/yC9DIGj_J5o?si=8N7R5Ae1pf_3edNH" // <- BURA LİNK YAZ
+  },
+  
+  // Topic 6: File Operations
+  {
+    topicId: 6,
+    title: "Fayllarla İş: Oxumaq və Yazmaq Əməliyyatları",
+    duration: "16:55",
+    url: "" // <- BURA LİNK YAZ
+  },
+  {
+    topicId: 6,
+    title: "with Statement və Context Managers",
+    duration: "11:25",
+    url: "" // <- BURA LİNK YAZ
+  },
+  
+  // Topic 7: Error Handling
+  {
+    topicId: 7,
+    title: "Xətaların İdarə Edilməsi: Try/Except Blokları",
+    duration: "18:30",
+    url: "" // <- BURA LİNK YAZ
+  },
+  {
+    topicId: 7,
+    title: "Xüsusi İstisnalar və Debugging Texnikaları",
+    duration: "14:50",
+    url: "" // <- BURA LİNK YAZ
+  },
+  
+  // Topic 8: Game/Logic Algorithms
+  {
+    topicId: 8,
+    title: "Oyun Alqoritmləri: Döyüş və Xal Sistemləri",
+    duration: "25:15",
+    url: "" // <- BURA LİNK YAZ
+  },
+  {
+    topicId: 8,
+    title: "Məntiq Bulmacaları və Alqoritmik Düşüncə",
+    duration: "20:40",
+    url: "" // <- BURA LİNK YAZ
+  },
+  
+  // Topic 9: OOP Classes and Objects
+  {
+    topicId: 9,
+    title: "OOP: Class və Object Anlayışları",
+    duration: "21:30",
+    url: "" // <- BURA LİNK YAZ
+  },
+  {
+    topicId: 9,
+    title: "Konstruktorlar və Metodlar",
+    duration: "17:45",
+    url: "" // <- BURA LİNK YAZ
+  },
+  
+  // Topic 10: OOP Inheritance and Polymorphism
+  {
+    topicId: 10,
+    title: "Varislik: Class-lar Arası Münasibətlər",
+    duration: "19:20",
+    url: "" // <- BURA LİNK YAZ
+  },
+  {
+    topicId: 10,
+    title: "Polimorfizm və Abstraksiya",
+    duration: "16:10",
+    url: "" // <- BURA LİNK YAZ
+  },
+  
+  // Topic 11: NumPy Arrays
+  {
+    topicId: 11,
+    title: "NumPy: Massivlər və Əsas Əməliyyatlar",
+    duration: "23:45",
+    url: "" // <- BURA LİNK YAZ
+  },
+  {
+    topicId: 11,
+    title: "NumPy Indexing və Slicing",
+    duration: "18:30",
+    url: "" // <- BURA LİNK YAZ
+  },
+  
+  // Topic 12: NumPy Matrix Operations
+  {
+    topicId: 12,
+    title: "Matris Əməliyyatları: Toplama, Çıxma, Vurma",
+    duration: "20:15",
+    url: "" // <- BURA LİNK YAZ
+  },
+  {
+    topicId: 12,
+    title: "Determinant və Tərs Matris",
+    duration: "15:50",
+    url: "" // <- BURA LİNK YAZ
+  },
+  
+  // Topic 13: Linear Algebra
+  {
+    topicId: 13,
+    title: "Xətti Cəbr: Vektorlar və Skalyarlar",
+    duration: "22:40",
+    url: "" // <- BURA LİNK YAZ
+  },
+  {
+    topicId: 13,
+    title: "Vektor Əməliyyatları və Tətbiqləri",
+    duration: "19:25",
+    url: "" // <- BURA LİNK YAZ
+  },
+  
+  // Topic 14: Statistics
+  {
+    topicId: 14,
+    title: "Statistika: Orta Qiymət və Median",
+    duration: "17:35",
+    url: "" // <- BURA LİNK YAZ
+  },
+  {
+    topicId: 14,
+    title: "Standart Meyl və Dispersiya",
+    duration: "14:20",
+    url: "" // <- BURA LİNK YAZ
+  },
+  
+  // Topic 15: Probability Theory
+  {
+    topicId: 15,
+    title: "Ehtimal Nəzəriyyəsi: Əsas Anlayışlar",
+    duration: "20:50",
+    url: "" // <- BURA LİNK YAZ
+  },
+  {
+    topicId: 15,
+    title: "Bayes Teoremi və Şərti Ehtimal",
+    duration: "18:15",
+    url: "" // <- BURA LİNK YAZ
+  },
+  
+  // Topic 16: Pandas DataFrame
+  {
+    topicId: 16,
+    title: "Pandas: DataFrame Strukturu və Yaradılması",
+    duration: "24:30",
+    url: "" // <- BURA LİNK YAZ
+  },
+  {
+    topicId: 16,
+    title: "DataFrame Indexing və Seçmə Əməliyyatları",
+    duration: "21:10",
+    url: "" // <- BURA LİNK YAZ
+  },
+  
+  // Topic 17: Pandas Data Cleaning
+  {
+    topicId: 17,
+    title: "Məlumat Təmizləmə: NaN Dəyərlər və Duplicate-lər",
+    duration: "22:45",
+    url: "" // <- BURA LİNK YAZ
+  },
+  {
+    topicId: 17,
+    title: "Data Transformation və Format Dəyişiklikləri",
+    duration: "19:30",
+    url: "" // <- BURA LİNK YAZ
+  },
+  
+  // Topic 18: Pandas GroupBy and Pivot
+  {
+    topicId: 18,
+    title: "GroupBy: Qruplaşdırma və Aqreqasiya",
+    duration: "20:20",
+    url: "" // <- BURA LİNK YAZ
+  },
+  {
+    topicId: 18,
+    title: "Pivot Cədvəllər və Cross-Tabulation",
+    duration: "17:55",
+    url: "" // <- BURA LİNK YAZ
+  },
+  
+  // Topic 19: Matplotlib
+  {
+    topicId: 19,
+    title: "Matplotlib: Qrafiklər və Vizualizasiya Əsasları",
+    duration: "23:15",
+    url: "" // <- BURA LİNK YAZ
+  },
+  {
+    topicId: 19,
+    title: "Xətti, Sütun və Dairəvi Diaqramlar",
+    duration: "20:40",
+    url: "" // <- BURA LİNK YAZ
+  },
+  
+  // Topic 20: Seaborn
+  {
+    topicId: 20,
+    title: "Seaborn: Statistik Vizualizasiya Kitabxanası",
+    duration: "21:50",
+    url: "" // <- BURA LİNK YAZ
+  },
+  {
+    topicId: 20,
+    title: "Heatmap və Cüt Qrafiklər",
+    duration: "18:25",
+    url: "" // <- BURA LİNK YAZ
+  }
 ];
 
 const AI = () => {
@@ -639,48 +925,77 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
     );
   };
 
+  // VIDEO BÖLMƏSİ - İZLƏ BUTTONU BURADA İŞLƏYİR
   const renderVideoHelp = () => {
-    const topicVideos = aiVideoLinks.filter(v => v.topicId === currentTopic + 1);
-    
+    const currentTopicId = currentTopic + 1;
+    const topicVideos = aiVideoLinks.filter(video => video.topicId === currentTopicId);
+
+    // İZLƏ buttonuna klikləndikdə linki aç
+    const handleWatchClick = (videoUrl) => {
+      if (videoUrl && videoUrl.trim() !== '') {
+        window.open(videoUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        alert('Bu video tezliklə əlavə olunacaq! Link boşdur.');
+      }
+    };
+
     return (
       <div className="video-help-section">
-        <h3>🎥 Video Köməkçi</h3>
-        <div className="video-categories">
-          {['beginner', 'intermediate', 'advanced'].map(level => {
-            const levelVideos = topicVideos.filter(v => v.level === level);
-            if (levelVideos.length === 0) return null;
-            
-            return (
-              <div key={level} className={'video-category ' + level}>
-                <h4>
-                  {level === 'beginner' && 'Başlanğıc'}
-                  {level === 'intermediate' && 'Orta'}
-                  {level === 'advanced' && 'İrəliləmiş'}
-                </h4>
-                <div className="video-list">
-                  {levelVideos.map((video, idx) => (
-                    <div key={idx} className="video-item">
-                      <div className="video-thumbnail">
-                        <PlayCircle size={24}/>
+        <div className="video-header">
+          <h3>🎥 Video Dəstəyi</h3>
+          <p className="video-subtitle">
+            Mövzu {currentTopicId}: {topics[currentTopic]?.title}
+          </p>
+        </div>
+        
+        <div className="video-buttons-container">
+          {topicVideos.length === 0 ? (
+            <div className="no-videos-card">
+              <Video size={48} className="no-videos-icon" />
+              <p>Bu mövzu üçün hələ video əlavə edilməyib.</p>
+            </div>
+          ) : (
+            <div className="video-buttons-grid">
+              {topicVideos.map((video, index) => {
+                const hasUrl = video.url && video.url.trim() !== '';
+                
+                return (
+                  <div key={index} className="video-card">
+                    <div className="video-info-section">
+                      <div className={`video-play-icon ${hasUrl ? 'active' : 'disabled'}`}>
+                        {hasUrl ? <Play size={24} fill="currentColor" /> : <Lock size={24} />}
                       </div>
-                      <div className="video-info">
-                        <h5>{video.title}</h5>
-                        <p>{video.duration} • {video.instructor}</p>
-                        <a 
-                          href={video.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="watch-btn"
-                        >
-                          İzlə
-                        </a>
+                      
+                      <div className="video-details">
+                        <span className="video-title">{video.title}</span>
+                        <span className="video-duration">⏱️ {video.duration}</span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+                    
+                    {/* İZLƏ BUTTONU - BURA BASANDA LİNK AÇILIR */}
+                    <button
+                      onClick={() => handleWatchClick(video.url)}
+                      className={`watch-button ${hasUrl ? 'active' : 'disabled'}`}
+                      disabled={!hasUrl}
+                    >
+                      {hasUrl ? (
+                        <>
+                          <Play size={16} />
+                          <span>İZLƏ</span>
+                          <ExternalLink size={14} />
+                        </>
+                      ) : (
+                        <>
+                          <Lock size={16} />
+                          <span>Tezliklə</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1057,6 +1372,165 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
           </div>
         )}
       </div>
+
+      {/* Video CSS */}
+      <style>{`
+        .video-help-section {
+          padding: 20px;
+          max-width: 900px;
+        }
+        
+        .video-header {
+          margin-bottom: 24px;
+        }
+        
+        .video-header h3 {
+          color: #333;
+          margin: 0 0 8px 0;
+          font-size: 24px;
+          font-weight: 600;
+        }
+        
+        .video-subtitle {
+          color: #666;
+          margin: 0;
+          font-size: 14px;
+        }
+        
+        .video-buttons-container {
+          width: 100%;
+        }
+        
+        .video-buttons-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+        
+        .video-card {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 20px;
+          border: 2px solid #e0e0e0;
+          border-radius: 12px;
+          background: white;
+          transition: all 0.3s ease;
+        }
+        
+        .video-card:hover {
+          border-color: #667eea;
+          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+        }
+        
+        .video-info-section {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          flex: 1;
+        }
+        
+        .video-play-icon {
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          transition: all 0.3s ease;
+        }
+        
+        .video-play-icon.active {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+        }
+        
+        .video-play-icon.disabled {
+          background: #ccc;
+          color: white;
+        }
+        
+        .video-details {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        
+        .video-title {
+          font-weight: 600;
+          color: #333;
+          font-size: 15px;
+          line-height: 1.4;
+        }
+        
+        .video-duration {
+          color: #888;
+          font-size: 13px;
+        }
+        
+        /* İZLƏ BUTTONU */
+        .watch-button {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 12px 24px;
+          border: none;
+          border-radius: 8px;
+          font-weight: 600;
+          font-size: 14px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        
+        .watch-button.active {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+        }
+        
+        .watch-button.active:hover {
+          transform: scale(1.05);
+          box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .watch-button.disabled {
+          background: #e0e0e0;
+          color: #999;
+          cursor: not-allowed;
+        }
+        
+        .no-videos-card {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 60px 20px;
+          background: #f8f9fa;
+          border-radius: 12px;
+          color: #888;
+          text-align: center;
+        }
+        
+        .no-videos-icon {
+          margin-bottom: 16px;
+          opacity: 0.5;
+        }
+        
+        @media (max-width: 768px) {
+          .video-card {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 16px;
+          }
+          
+          .watch-button {
+            width: 100%;
+            justify-content: center;
+          }
+        }
+      `}</style>
     </div>
   );
 };
