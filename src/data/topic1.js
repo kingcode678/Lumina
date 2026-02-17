@@ -8,126 +8,159 @@ export const topic1 = {
     <style>
       .topic-container {
         font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-        line-height: 1.7;
-        color: #2d3748;
+        line-height: 1.8;
+        color: #1a202c;
         max-width: 100%;
+        font-size: 17px;
       }
       
       .intro-box {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        padding: 2rem;
+        padding: 2.5rem;
         border-radius: 16px;
         margin-bottom: 2rem;
       }
       
       .intro-box h2 {
         margin: 0 0 1rem 0;
-        font-size: 1.8rem;
+        font-size: 2.2rem;
+        font-weight: 700;
       }
       
       .intro-box p {
         margin: 0;
         opacity: 0.95;
-        font-size: 1.1rem;
+        font-size: 1.25rem;
+        line-height: 1.7;
       }
       
       .section-card {
         background: white;
         border-radius: 12px;
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
+        padding: 2rem;
+        margin-bottom: 2rem;
         box-shadow: 0 4px 6px rgba(0,0,0,0.07);
-        border-left: 4px solid #667eea;
+        border-left: 5px solid #667eea;
       }
       
       .section-card h3 {
-        color: #2d3748;
-        margin: 0 0 1rem 0;
-        font-size: 1.4rem;
+        color: #1a202c;
+        margin: 0 0 1.5rem 0;
+        font-size: 1.6rem;
+        font-weight: 700;
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.75rem;
+      }
+      
+      .section-card h4 {
+        color: #2d3748;
+        margin: 2rem 0 1rem 0;
+        font-size: 1.3rem;
+        font-weight: 600;
+      }
+      
+      .section-card p {
+        margin-bottom: 1rem;
+        font-size: 1.05rem;
+        line-height: 1.8;
       }
       
       .code-block {
         background: #1a202c;
         color: #e2e8f0;
         padding: 1.5rem;
-        border-radius: 8px;
+        border-radius: 10px;
         overflow-x: auto;
-        margin: 1rem 0;
-        font-family: 'Consolas', 'Monaco', monospace;
-        font-size: 0.9rem;
-        line-height: 1.6;
+        margin: 1.5rem 0;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 1rem;
+        line-height: 1.7;
+        border: 2px solid #4a5568;
       }
       
-      .code-block .tag { color: #63b3ed; }
-      .code-block .attr { color: #68d391; }
-      .code-block .value { color: #f687b3; }
-      .code-block .comment { color: #718096; font-style: italic; }
+      .code-block .tag { color: #63b3ed; font-weight: 600; }
+      .code-block .attr { color: #68d391; font-weight: 500; }
+      .code-block .value { color: #f687b3; font-weight: 500; }
+      .code-block .comment { color: #a0aec0; font-style: italic; }
       .code-block .text { color: #e2e8f0; }
       
       .info-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 1rem;
-        margin: 1rem 0;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin: 1.5rem 0;
       }
       
       .info-item {
         background: #f7fafc;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 1px solid #e2e8f0;
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 2px solid #e2e8f0;
+        transition: all 0.3s ease;
+      }
+      
+      .info-item:hover {
+        border-color: #667eea;
+        transform: translateY(-3px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
       }
       
       .info-item h4 {
-        margin: 0 0 0.5rem 0;
+        margin: 0 0 0.75rem 0;
         color: #667eea;
-        font-size: 1rem;
+        font-size: 1.15rem;
+        font-weight: 700;
       }
       
       .info-item p {
         margin: 0;
-        font-size: 0.9rem;
+        font-size: 1rem;
         color: #4a5568;
+        line-height: 1.6;
       }
       
       .highlight-box {
-        background: #fffaf0;
-        border: 1px solid #fbd38d;
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
+        background: #fffbeb;
+        border: 2px solid #f59e0b;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        font-size: 1.05rem;
       }
       
       .highlight-box strong {
-        color: #c05621;
+        color: #b45309;
+        font-size: 1.1rem;
       }
       
       .tip-box {
         background: #f0fff4;
-        border: 1px solid #9ae6b4;
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
+        border: 2px solid #10b981;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        font-size: 1.05rem;
       }
       
       .tip-box strong {
-        color: #276749;
+        color: #047857;
+        font-size: 1.1rem;
       }
       
       .warning-box {
-        background: #fff5f5;
-        border: 1px solid #fc8181;
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
+        background: #fef2f2;
+        border: 2px solid #ef4444;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        font-size: 1.05rem;
       }
       
       .warning-box strong {
-        color: #c53030;
+        color: #b91c1c;
+        font-size: 1.1rem;
       }
       
       .step-list {
@@ -139,9 +172,11 @@ export const topic1 = {
       .step-list li {
         counter-increment: step;
         position: relative;
-        padding-left: 3rem;
-        margin-bottom: 1rem;
-        padding-top: 0.3rem;
+        padding-left: 3.5rem;
+        margin-bottom: 1.5rem;
+        padding-top: 0.5rem;
+        font-size: 1.05rem;
+        line-height: 1.7;
       }
       
       .step-list li::before {
@@ -149,35 +184,39 @@ export const topic1 = {
         position: absolute;
         left: 0;
         top: 0;
-        width: 2rem;
-        height: 2rem;
+        width: 2.5rem;
+        height: 2.5rem;
         background: #667eea;
         color: white;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-weight: bold;
-        font-size: 0.9rem;
+        font-weight: 700;
+        font-size: 1.2rem;
       }
       
       .comparison-table {
         width: 100%;
         border-collapse: collapse;
-        margin: 1rem 0;
-        font-size: 0.95rem;
+        margin: 1.5rem 0;
+        font-size: 1.05rem;
       }
       
       .comparison-table th {
         background: #667eea;
         color: white;
-        padding: 0.75rem;
+        padding: 1rem;
         text-align: left;
+        font-weight: 600;
+        font-size: 1.1rem;
       }
       
       .comparison-table td {
-        padding: 0.75rem;
-        border-bottom: 1px solid #e2e8f0;
+        padding: 1rem;
+        border-bottom: 2px solid #e2e8f0;
+        color: #2d3748;
+        line-height: 1.6;
       }
       
       .comparison-table tr:nth-child(even) {
@@ -188,28 +227,32 @@ export const topic1 = {
         display: inline-block;
         background: #e6fffa;
         color: #234e52;
-        padding: 0.25rem 0.5rem;
-        border-radius: 4px;
+        padding: 0.4rem 0.8rem;
+        border-radius: 6px;
         font-family: monospace;
-        font-size: 0.85rem;
-        margin: 0.2rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        margin: 0.25rem;
+        border: 2px solid #81e6d9;
       }
       
       .example-preview {
         background: white;
-        border: 2px dashed #cbd5e0;
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
+        border: 3px dashed #cbd5e0;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
       }
       
       .example-preview-header {
         background: #edf2f7;
-        padding: 0.5rem 1rem;
-        margin: -1rem -1rem 1rem -1rem;
-        border-radius: 6px 6px 0 0;
-        font-size: 0.85rem;
+        padding: 0.75rem 1.5rem;
+        margin: -1.5rem -1.5rem 1.5rem -1.5rem;
+        border-radius: 7px 7px 0 0;
+        font-size: 1rem;
         color: #4a5568;
+        font-weight: 600;
+        border-bottom: 2px solid #e2e8f0;
       }
       
       .check-list {
@@ -218,9 +261,11 @@ export const topic1 = {
       }
       
       .check-list li {
-        padding-left: 1.8rem;
+        padding-left: 2rem;
         position: relative;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.75rem;
+        font-size: 1.05rem;
+        line-height: 1.7;
       }
       
       .check-list li::before {
@@ -228,7 +273,28 @@ export const topic1 = {
         position: absolute;
         left: 0;
         color: #48bb78;
-        font-weight: bold;
+        font-weight: 900;
+        font-size: 1.3rem;
+      }
+      
+      code {
+        background: #edf2f7;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-family: monospace;
+        color: #667eea;
+        font-weight: 600;
+        font-size: 0.95em;
+      }
+      
+      ul, ol {
+        margin-left: 1.5rem;
+        margin-bottom: 1rem;
+      }
+      
+      ul li, ol li {
+        margin-bottom: 0.5rem;
+        line-height: 1.7;
       }
     </style>
 
@@ -251,7 +317,7 @@ export const topic1 = {
         </ul>
 
         <div class="highlight-box">
-          <strong>💡 Vacib:</strong> HTML yalnız məzmunun <em>nə olduğunu</em> göstərir, <em> necə göründüyünü</em> yox! Görünüş üçün CSS istifadə olunur.
+          <strong>💡 Vacib:</strong> HTML yalnız məzmunun <em>nə olduğunu</em> göstərir, <em>necə göründüyünü</em> yox! Görünüş üçün CSS istifadə olunur.
         </div>
       </div>
 
@@ -350,12 +416,12 @@ export const topic1 = {
         
         <div class="example-preview">
           <div class="example-preview-header">Brauzerdə belə görünür:</div>
-          <h1 style="margin:0 0 0.5rem 0; font-size:2rem;">Bu H1 başlıqdır (Əsas başlıq)</h1>
-          <h2 style="margin:0 0 0.5rem 0; font-size:1.7rem; color:#4a5568;">Bu H2 başlıqdır (Bölmə başlığı)</h2>
-          <h3 style="margin:0 0 0.5rem 0; font-size:1.4rem; color:#718096;">Bu H3 başlıqdır (Alt bölmə)</h3>
-          <h4 style="margin:0 0 0.3rem 0; font-size:1.2rem; color:#a0aec0;">Bu H4 başlıqdır</h4>
-          <h5 style="margin:0 0 0.3rem 0; font-size:1rem; color:#cbd5e0;">Bu H5 başlıqdır</h5>
-          <h6 style="margin:0; font-size:0.9rem; color:#e2e8f0;">Bu H6 başlıqdır (Ən kiçik)</h6>
+          <h1 style="margin:0 0 0.5rem 0; font-size:2rem; color:#1a202c;">Bu H1 başlıqdır (Əsas başlıq)</h1>
+          <h2 style="margin:0 0 0.5rem 0; font-size:1.7rem; color:#2d3748;">Bu H2 başlıqdır (Bölmə başlığı)</h2>
+          <h3 style="margin:0 0 0.5rem 0; font-size:1.4rem; color:#4a5568;">Bu H3 başlıqdır (Alt bölmə)</h3>
+          <h4 style="margin:0 0 0.3rem 0; font-size:1.2rem; color:#718096;">Bu H4 başlıqdır</h4>
+          <h5 style="margin:0 0 0.3rem 0; font-size:1rem; color:#a0aec0;">Bu H5 başlıqdır</h5>
+          <h6 style="margin:0; font-size:0.9rem; color:#cbd5e0;">Bu H6 başlıqdır (Ən kiçik)</h6>
         </div>
 
         <div class="code-block">
@@ -376,7 +442,7 @@ export const topic1 = {
         <div class="info-grid">
           <div class="info-item">
             <h4>Qalın mətn</h4>
-            <div class="code-block" style="margin:0.5rem 0; padding:0.5rem;">
+            <div class="code-block" style="margin:0.5rem 0; padding:0.75rem;">
 <span class="tag">&lt;strong&gt;</span><span class="text">Vacib</span><span class="tag">&lt;/strong&gt;</span>
 <span class="tag">&lt;b&gt;</span><span class="text">Qalın</span><span class="tag">&lt;/b&gt;</span>
             </div>
@@ -386,7 +452,7 @@ export const topic1 = {
           
           <div class="info-item">
             <h4>Əyri mətn</h4>
-            <div class="code-block" style="margin:0.5rem 0; padding:0.5rem;">
+            <div class="code-block" style="margin:0.5rem 0; padding:0.75rem;">
 <span class="tag">&lt;em&gt;</span><span class="text">Vurğu</span><span class="tag">&lt;/em&gt;</span>
 <span class="tag">&lt;i&gt;</span><span class="text">Əyri</span><span class="tag">&lt;/i&gt;</span>
             </div>
@@ -396,7 +462,7 @@ export const topic1 = {
           
           <div class="info-item">
             <h4>Alt/Üst indeks</h4>
-            <div class="code-block" style="margin:0.5rem 0; padding:0.5rem;">
+            <div class="code-block" style="margin:0.5rem 0; padding:0.75rem;">
 H<span class="tag">&lt;sub&gt;</span><span class="text">2</span><span class="tag">&lt;/sub&gt;</span>O
 E=mc<span class="tag">&lt;sup&gt;</span><span class="text">2</span><span class="tag">&lt;/sup&gt;</span>
             </div>
@@ -406,7 +472,7 @@ E=mc<span class="tag">&lt;sup&gt;</span><span class="text">2</span><span class="
           
           <div class="info-item">
             <h4>Xüsusi işarələr</h4>
-            <div class="code-block" style="margin:0.5rem 0; padding:0.5rem;">
+            <div class="code-block" style="margin:0.5rem 0; padding:0.75rem;">
 <span class="text">&amp;copy;</span> <span class="text">&amp;reg;</span>
 <span class="text">&amp;trade;</span> <span class="text">&amp;nbsp;</span>
             </div>
@@ -469,10 +535,10 @@ E=mc<span class="tag">&lt;sup&gt;</span><span class="text">2</span><span class="
         <div class="example-preview">
           <div class="example-preview-header">Nəticə:</div>
           <dl style="margin:0;">
-            <dt style="font-weight:bold;">HTML</dt>
-            <dd style="margin-left:1rem;">Veb səhifələrin strukturunu yaradan dil</dd>
-            <dt style="font-weight:bold; margin-top:0.5rem;">CSS</dt>
-            <dd style="margin-left:1rem;">Veb səhifələrin görünüşünü tənzimləyən dil</dd>
+            <dt style="font-weight:bold; color:#1a202c;">HTML</dt>
+            <dd style="margin-left:1rem; color:#4a5568;">Veb səhifələrin strukturunu yaradan dil</dd>
+            <dt style="font-weight:bold; color:#1a202c; margin-top:0.5rem;">CSS</dt>
+            <dd style="margin-left:1rem; color:#4a5568;">Veb səhifələrin görünüşünü tənzimləyən dil</dd>
           </dl>
         </div>
       </div>
@@ -618,21 +684,21 @@ E=mc<span class="tag">&lt;sup&gt;</span><span class="text">2</span><span class="
           <table style="width:100%; border-collapse: collapse;">
             <thead style="background:#667eea; color:white;">
               <tr>
-                <th style="padding:0.5rem; text-align:left;">Ad</th>
-                <th style="padding:0.5rem; text-align:left;">Yaş</th>
-                <th style="padding:0.5rem; text-align:left;">Şəhər</th>
+                <th style="padding:0.75rem; text-align:left;">Ad</th>
+                <th style="padding:0.75rem; text-align:left;">Yaş</th>
+                <th style="padding:0.75rem; text-align:left;">Şəhər</th>
               </tr>
             </thead>
             <tbody>
               <tr style="border-bottom:1px solid #e2e8f0;">
-                <td style="padding:0.5rem;">Əli</td>
-                <td style="padding:0.5rem;">25</td>
-                <td style="padding:0.5rem;">Bakı</td>
+                <td style="padding:0.75rem;">Əli</td>
+                <td style="padding:0.75rem;">25</td>
+                <td style="padding:0.75rem;">Bakı</td>
               </tr>
               <tr>
-                <td style="padding:0.5rem;">Ayşə</td>
-                <td style="padding:0.5rem;">30</td>
-                <td style="padding:0.5rem;">Gəncə</td>
+                <td style="padding:0.75rem;">Ayşə</td>
+                <td style="padding:0.75rem;">30</td>
+                <td style="padding:0.75rem;">Gəncə</td>
               </tr>
             </tbody>
           </table>
@@ -947,7 +1013,7 @@ E=mc<span class="tag">&lt;sup&gt;</span><span class="text">2</span><span class="
       <!-- YEKUN -->
       <div class="section-card" style="border-left-color: #48bb78;">
         <h3>🎉 Təbriklər!</h3>
-        <p>HTML5-in əsaslarını öyrəndiniz. İndi bilirsiniz:</p>
+        <p style="font-size: 1.1rem;">HTML5-in əsaslarını öyrəndiniz. İndi bilirsiniz:</p>
         <ul class="check-list">
           <li>HTML sənədinin strukturunu</li>
           <li>Başlıqlar, abzaslar, siyahılar yaratmağı</li>
@@ -957,7 +1023,7 @@ E=mc<span class="tag">&lt;sup&gt;</span><span class="text">2</span><span class="
           <li>Əlçatanlıq prinsiplərini</li>
         </ul>
         
-        <div class="tip-box" style="margin-top: 1rem;">
+        <div class="tip-box" style="margin-top: 1.5rem;">
           <strong>🚀 Növbəti Addım:</strong> Öyrəndiklərinizi praktikada tətbiq edin! Aşağıdakı tapşırığı yerinə yetirin və real bir layihə yaradın.
         </div>
       </div>
