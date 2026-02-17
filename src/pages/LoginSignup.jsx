@@ -7,7 +7,7 @@ import {
   signInWithEmailAndPassword,
   updateProfile 
 } from '../firebase';
-import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
 import { Code2, Mail, Lock, User, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import '../styles/LoginSignup.css';
 
@@ -59,85 +59,89 @@ const LoginSignup = () => {
   };
 
   // 8 simvollu unikal kod generator
-  const generateUniqueCode = async () => {
+  const generateUniqueCode = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let code = '';
-    let isUnique = false;
-    
-    while (!isUnique) {
-      code = '';
-      for (let i = 0; i < 8; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      
-      // Kodun unikal olduğunu yoxla
-      const codesRef = collection(db, 'activationCodes');
-      const q = query(codesRef, where('code', '==', code));
-      const querySnapshot = await getDocs(q);
-      
-      if (querySnapshot.empty) {
-        isUnique = true;
-      }
+    for (let i = 0; i < 8; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    
     return code;
   };
 
-  // İstifadəçi üçün aktivləşdirmə kodları yarat
-  const createActivationCodes = async (userId, userEmail) => {
+  // İstifadəçi adına görə təmizlənmiş ID yarat
+  const createUserNameId = (name) => {
+    return name
+      .toLowerCase()
+      .replace(/\s+/g, '-')           // Boşluqları tire ilə əvəz et
+      .replace(/[^a-z0-9-]/g, '')     // Yalnız hərf, rəqəm və tire
+      .substring(0, 20);              // Maksimum 20 simvol
+  };
+
+  // İstifadəçi üçün aktivləşdirmə kodları yarat - İSTİFADƏÇİ ADINA GÖRƏ QRUPLAŞDIRILMIŞ
+  const createActivationCodes = async (userId, userEmail, userName) => {
     try {
+      const userNameId = createUserNameId(userName);
+      
       const courses = [
         { id: 'frontend', name: 'Frontend Developer', duration: 4, price: 12 },
-        { id: 'ai', name: 'Süni İntelekt', duration: 6, price: 15 }
+        { id: 'ai-python', name: 'Süni İntelekt', duration: 4, price: 15 }
       ];
 
       const codes = [];
 
       for (const course of courses) {
-        const code = await generateUniqueCode();
+        const code = generateUniqueCode();
         
         const codeData = {
           code: code,
           userId: userId,
           userEmail: userEmail,
+          userName: userName,           // İstifadəçi adı
+          userNameId: userNameId,       // Təmizlənmiş istifadəçi adı ID-si
           course: course.id,
           courseName: course.name,
-          status: 'pending', // pending | active | used | expired
+          status: 'pending',
           createdAt: serverTimestamp(),
           activatedAt: null,
           expiresAt: null,
-          currentMonth: 0, // 0 = hələ aktiv deyil, 1-6 = aktiv ay
+          currentMonth: 0,
           totalMonths: course.duration,
           usedMonths: [],
           payment: {
+            status: 'pending',
             amount: course.price,
             currency: 'AZN',
             method: null,
             verifiedBy: null,
             verifiedAt: null
-          },
-          metadata: {
-            generatedBy: 'system',
-            notes: 'Avtomatik yaradıldı - gözləyir'
           }
         };
 
-        // Kodu users/{userId}/activationCodes altında saxla
+        // 1. Əsas activationCodes kolleksiyasında - KOD = DOCUMENT ID (Frontend.jsx üçün)
+        await setDoc(doc(db, 'activationCodes', code), codeData);
+
+        // 2. İstifadəçi adına görə qruplaşdırılmış kolleksiya - Admin panel üçün asan axtarış
+        // Structure: activationCodesByUser/{userNameId}/codes/{code}
+        await setDoc(
+          doc(db, 'activationCodesByUser', userNameId, 'codes', code), 
+          codeData
+        );
+
+        // 3. User-in şəxsi activationCodes alt-kolleksiyasında
         await setDoc(
           doc(db, 'users', userId, 'activationCodes', course.id), 
           codeData
         );
 
-        // Kodu admin üçün ayrı kolleksiyada da saxla (sürətli axtarış üçün)
-        await setDoc(
-          doc(db, 'activationCodes', code),
-          codeData
-        );
-
-        codes.push({ course: course.name, code: code });
+        codes.push({ 
+          course: course.name, 
+          code: code,
+          userName: userName,
+          userNameId: userNameId
+        });
       }
 
-      console.log('Kodlar yaradıldı:', codes);
+      console.log('Kodlar yaradıldı (istifadəçi adına görə qruplaşdırılmış):', codes);
       return codes;
     } catch (error) {
       console.error('Kod yaratma xətası:', error);
@@ -183,8 +187,8 @@ const LoginSignup = () => {
           updatedAt: serverTimestamp()
         });
 
-        // 3. AKTİVLƏŞDİRMƏ KODLARINI YARAT (YENİ FUNKSİYA)
-        await createActivationCodes(user.uid, formData.email);
+        // 3. AKTİVLƏŞDİRMƏ KODLARINI YARAT - İSTİFADƏÇİ ADINA GÖRƏ QRUPLAŞDIRILMIŞ
+        await createActivationCodes(user.uid, formData.email, formData.name);
       }
       
       navigate('/');

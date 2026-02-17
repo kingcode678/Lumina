@@ -1,14 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { auth, db } from '../firebase';
 import { 
   doc, 
   getDoc, 
   updateDoc, 
   serverTimestamp,
-  collection,
-  query,
-  where,
-  getDocs,
   setDoc 
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -79,20 +75,20 @@ const NAV_ITEMS = [
   { id: 'videos', icon: Video, label: 'Video', emoji: '🎥' },
 ];
 
-// AI Course Video Links Configuration - BURA ÖZ LİNKLƏRİNİ YAZ
+// AI Course Video Links Configuration
 const aiVideoLinks = [
   // Topic 1: Python Variables and Data Types
   {
     topicId: 1,
     title: "Python Dəyişənləri",
     duration: "15:30",
-    url: "https://youtu.be/V1c0MzR8qo8?si=VTQFIcaakZHEgdCv" // <- BURA LİNK YAZ: misal: "https://youtube.com/watch?v=..."
+    url: "https://youtu.be/V1c0MzR8qo8?si=VTQFIcaakZHEgdCv"
   },
   {
     topicId: 1,
     title: "Python Məlumat Tipləri",
     duration: "12:45",
-    url: "https://youtu.be/L2Ryd70pVXI?si=9iDC00hct2RHUxHM" // <- BURA LİNK YAZ
+    url: "https://youtu.be/L2Ryd70pVXI?si=9iDC00hct2RHUxHM"
   },
   
   // Topic 2: List, Tuple, Dictionary and Set
@@ -100,36 +96,33 @@ const aiVideoLinks = [
     topicId: 2,
     title: "Set ve Tuple",
     duration: "18:20",
-    url: "https://youtu.be/OMwQ_i9GJbI?si=3UJH1fepGsU1bGvM" // <- BURA LİNK YAZ
+    url: "https://youtu.be/OMwQ_i9GJbI?si=3UJH1fepGsU1bGvM"
   },
   {
     topicId: 2,
     title: "List",
     duration: "16:50",
-    url: "https://youtu.be/pBMuc4cc_Ck?si=lgfUe58fWOXJFmAC" // <- BURA LİNK YAZ
+    url: "https://youtu.be/pBMuc4cc_Ck?si=lgfUe58fWOXJFmAC"
   },
-
-
   {
     topicId: 2,
     title: "Dictionary",
     duration: "12:30",
-    url: "https://youtu.be/0jKOxXn7yMg?si=z7Q8jpACJ1gf9BCN"   // <- Bura Link Yaz
+    url: "https://youtu.be/0jKOxXn7yMg?si=z7Q8jpACJ1gf9BCN"
   },
 
-  
   // Topic 3: Conditional Operators
   {
     topicId: 3,
     title: "Şərt Operatorları",
     duration: "14:15",
-    url: "https://youtu.be/R6DmpXky2WA?si=bpTWg7WpUfkIPtbt" // <- BURA LİNK YAZ
+    url: "https://youtu.be/R6DmpXky2WA?si=bpTWg7WpUfkIPtbt"
   },
   {
     topicId: 3,
     title: "Şərt Operatorları : İç-içə Şərtlər",
     duration: "17:30",
-    url: "https://youtu.be/gbNRVvPdSa0?si=UdQ6KZUWT-8OBh60" // <- BURA LİNK YAZ
+    url: "https://youtu.be/gbNRVvPdSa0?si=UdQ6KZUWT-8OBh60"
   },
   
   // Topic 4: Loops
@@ -137,7 +130,7 @@ const aiVideoLinks = [
     topicId: 4,
     title: "Dövrlər : For və While Dövrləri",
     duration: "19:45",
-    url: "https://youtu.be/JUsemOXDvjY?si=axD0VxWozQFym2DK" // <- BURA LİNK YAZ
+    url: "https://youtu.be/JUsemOXDvjY?si=axD0VxWozQFym2DK"
   },
   
   // Topic 5: Functions
@@ -145,223 +138,105 @@ const aiVideoLinks = [
     topicId: 5,
     title: "Funksiyalar",
     duration: "22:10",
-    url: "https://youtu.be/_HRn8zB47cs?si=oHTLBbs3EWrQ7_Uu" // <- BURA LİNK YAZ
+    url: "https://youtu.be/_HRn8zB47cs?si=oHTLBbs3EWrQ7_Uu"
   },
   {
     topicId: 5,
     title: "Lambda və Map Funksiyaları : Anonim Funksiyalar",
     duration: "13:40",
-    url: "https://youtu.be/yC9DIGj_J5o?si=8N7R5Ae1pf_3edNH" // <- BURA LİNK YAZ
+    url: "https://youtu.be/yC9DIGj_J5o?si=8N7R5Ae1pf_3edNH"
   },
   
-  // Topic 6: File Operations
+  // Topic 6-20 videos...
   {
     topicId: 6,
     title: "Fayllarla İş: Oxumaq və Yazmaq Əməliyyatları",
     duration: "16:55",
-    url: "" // <- BURA LİNK YAZ
+    url: ""
   },
-  {
-    topicId: 6,
-    title: "with Statement və Context Managers",
-    duration: "11:25",
-    url: "" // <- BURA LİNK YAZ
-  },
-  
-  // Topic 7: Error Handling
   {
     topicId: 7,
     title: "Xətaların İdarə Edilməsi: Try/Except Blokları",
     duration: "18:30",
-    url: "" // <- BURA LİNK YAZ
+    url: ""
   },
-  {
-    topicId: 7,
-    title: "Xüsusi İstisnalar və Debugging Texnikaları",
-    duration: "14:50",
-    url: "" // <- BURA LİNK YAZ
-  },
-  
-  // Topic 8: Game/Logic Algorithms
   {
     topicId: 8,
     title: "Oyun Alqoritmləri: Döyüş və Xal Sistemləri",
     duration: "25:15",
-    url: "" // <- BURA LİNK YAZ
+    url: ""
   },
-  {
-    topicId: 8,
-    title: "Məntiq Bulmacaları və Alqoritmik Düşüncə",
-    duration: "20:40",
-    url: "" // <- BURA LİNK YAZ
-  },
-  
-  // Topic 9: OOP Classes and Objects
   {
     topicId: 9,
     title: "OOP: Class və Object Anlayışları",
     duration: "21:30",
-    url: "" // <- BURA LİNK YAZ
+    url: ""
   },
-  {
-    topicId: 9,
-    title: "Konstruktorlar və Metodlar",
-    duration: "17:45",
-    url: "" // <- BURA LİNK YAZ
-  },
-  
-  // Topic 10: OOP Inheritance and Polymorphism
   {
     topicId: 10,
     title: "Varislik: Class-lar Arası Münasibətlər",
     duration: "19:20",
-    url: "" // <- BURA LİNK YAZ
+    url: ""
   },
-  {
-    topicId: 10,
-    title: "Polimorfizm və Abstraksiya",
-    duration: "16:10",
-    url: "" // <- BURA LİNK YAZ
-  },
-  
-  // Topic 11: NumPy Arrays
   {
     topicId: 11,
     title: "NumPy: Massivlər və Əsas Əməliyyatlar",
     duration: "23:45",
-    url: "" // <- BURA LİNK YAZ
+    url: ""
   },
-  {
-    topicId: 11,
-    title: "NumPy Indexing və Slicing",
-    duration: "18:30",
-    url: "" // <- BURA LİNK YAZ
-  },
-  
-  // Topic 12: NumPy Matrix Operations
   {
     topicId: 12,
     title: "Matris Əməliyyatları: Toplama, Çıxma, Vurma",
     duration: "20:15",
-    url: "" // <- BURA LİNK YAZ
+    url: ""
   },
-  {
-    topicId: 12,
-    title: "Determinant və Tərs Matris",
-    duration: "15:50",
-    url: "" // <- BURA LİNK YAZ
-  },
-  
-  // Topic 13: Linear Algebra
   {
     topicId: 13,
     title: "Xətti Cəbr: Vektorlar və Skalyarlar",
     duration: "22:40",
-    url: "" // <- BURA LİNK YAZ
+    url: ""
   },
-  {
-    topicId: 13,
-    title: "Vektor Əməliyyatları və Tətbiqləri",
-    duration: "19:25",
-    url: "" // <- BURA LİNK YAZ
-  },
-  
-  // Topic 14: Statistics
   {
     topicId: 14,
     title: "Statistika: Orta Qiymət və Median",
     duration: "17:35",
-    url: "" // <- BURA LİNK YAZ
+    url: ""
   },
-  {
-    topicId: 14,
-    title: "Standart Meyl və Dispersiya",
-    duration: "14:20",
-    url: "" // <- BURA LİNK YAZ
-  },
-  
-  // Topic 15: Probability Theory
   {
     topicId: 15,
     title: "Ehtimal Nəzəriyyəsi: Əsas Anlayışlar",
     duration: "20:50",
-    url: "" // <- BURA LİNK YAZ
+    url: ""
   },
-  {
-    topicId: 15,
-    title: "Bayes Teoremi və Şərti Ehtimal",
-    duration: "18:15",
-    url: "" // <- BURA LİNK YAZ
-  },
-  
-  // Topic 16: Pandas DataFrame
   {
     topicId: 16,
     title: "Pandas: DataFrame Strukturu və Yaradılması",
     duration: "24:30",
-    url: "" // <- BURA LİNK YAZ
+    url: ""
   },
-  {
-    topicId: 16,
-    title: "DataFrame Indexing və Seçmə Əməliyyatları",
-    duration: "21:10",
-    url: "" // <- BURA LİNK YAZ
-  },
-  
-  // Topic 17: Pandas Data Cleaning
   {
     topicId: 17,
     title: "Məlumat Təmizləmə: NaN Dəyərlər və Duplicate-lər",
     duration: "22:45",
-    url: "" // <- BURA LİNK YAZ
+    url: ""
   },
-  {
-    topicId: 17,
-    title: "Data Transformation və Format Dəyişiklikləri",
-    duration: "19:30",
-    url: "" // <- BURA LİNK YAZ
-  },
-  
-  // Topic 18: Pandas GroupBy and Pivot
   {
     topicId: 18,
     title: "GroupBy: Qruplaşdırma və Aqreqasiya",
     duration: "20:20",
-    url: "" // <- BURA LİNK YAZ
+    url: ""
   },
-  {
-    topicId: 18,
-    title: "Pivot Cədvəllər və Cross-Tabulation",
-    duration: "17:55",
-    url: "" // <- BURA LİNK YAZ
-  },
-  
-  // Topic 19: Matplotlib
   {
     topicId: 19,
     title: "Matplotlib: Qrafiklər və Vizualizasiya Əsasları",
     duration: "23:15",
-    url: "" // <- BURA LİNK YAZ
+    url: ""
   },
-  {
-    topicId: 19,
-    title: "Xətti, Sütun və Dairəvi Diaqramlar",
-    duration: "20:40",
-    url: "" // <- BURA LİNK YAZ
-  },
-  
-  // Topic 20: Seaborn
   {
     topicId: 20,
     title: "Seaborn: Statistik Vizualizasiya Kitabxanası",
     duration: "21:50",
-    url: "" // <- BURA LİNK YAZ
-  },
-  {
-    topicId: 20,
-    title: "Heatmap və Cüt Qrafiklər",
-    duration: "18:25",
-    url: "" // <- BURA LİNK YAZ
+    url: ""
   }
 ];
 
@@ -513,7 +388,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
       console.error('Chatbot xətası:', error);
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: `Bağışlayın, texniki problem yarandı: ${error.message}. Zəhmət olmasa sonra yenidən cəhd edin. Əgər problem davam edərsə, support@lumina.az ünvanına yazın.` 
+        content: `Bağışlayın, texniki problem yarandı: ${error.message}. Zəhmət olmasa sonra yenidən cəhd edin.` 
       }]);
     } finally {
       setIsTyping(false);
@@ -543,6 +418,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
     return () => unsubscribe();
   }, []);
 
+  // FRONTEND.JSX İLƏ TAM EYNİ - checkUserActivation
   const checkUserActivation = async (userId) => {
     try {
       const codeRef = doc(db, 'users', userId, 'activationCodes', COURSE_ID);
@@ -561,22 +437,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
           setIsActivated(false);
         }
       } else {
-        const q = query(
-          collection(db, 'activationCodes'), 
-          where('userId', '==', userId),
-          where('course', '==', COURSE_ID)
-        );
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-          const data = querySnapshot.docs[0].data();
-          setActivationData(data);
-          
-          if (data.status === 'active') {
-            setIsActivated(true);
-            setCurrentMonth(data.currentMonth || 1);
-          }
-        }
+        setIsActivated(false);
       }
 
       await loadUserAnalysis(userId);
@@ -608,6 +469,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
     }
   };
 
+  // FRONTEND.JSX İLƏ TAM EYNİ - activateCourse
   const activateCourse = async (inputCode) => {
     setActivationError('');
     
@@ -675,9 +537,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
   };
 
   useEffect(() => {
-    const savedActivation = localStorage.getItem('ai_course_activated');
     const savedMonth = localStorage.getItem('ai_current_month');
-    
     if (savedMonth) {
       setCurrentMonth(parseInt(savedMonth));
     }
@@ -925,17 +785,16 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
     );
   };
 
-  // VIDEO BÖLMƏSİ - İZLƏ BUTTONU BURADA İŞLƏYİR
+  // Video bölməsi
   const renderVideoHelp = () => {
     const currentTopicId = currentTopic + 1;
     const topicVideos = aiVideoLinks.filter(video => video.topicId === currentTopicId);
 
-    // İZLƏ buttonuna klikləndikdə linki aç
     const handleWatchClick = (videoUrl) => {
       if (videoUrl && videoUrl.trim() !== '') {
         window.open(videoUrl, '_blank', 'noopener,noreferrer');
       } else {
-        alert('Bu video tezliklə əlavə olunacaq! Link boşdur.');
+        alert('Bu video tezliklə əlavə olunacaq!');
       }
     };
 
@@ -972,7 +831,6 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
                       </div>
                     </div>
                     
-                    {/* İZLƏ BUTTONU - BURA BASANDA LİNK AÇILIR */}
                     <button
                       onClick={() => handleWatchClick(video.url)}
                       className={`watch-button ${hasUrl ? 'active' : 'disabled'}`}
@@ -1032,7 +890,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
         <div className="header-actions">
           <a href="/" className="home-btn">🏠 Ana Səhifə</a>
           {isActivated ? (
-            <span className="badge activated">✓ Aktiv</span>
+            <span className="badge activated">✓ Aktiv (Ay {currentMonth})</span>
           ) : (
             <span className="badge inactive">🔒 Deaktiv</span>
           )}
@@ -1131,7 +989,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
         <div className="drawer-footer">
           <div className={`drawer-status ${isActivated ? 'active' : ''}`}>
             <span>{isActivated ? '✅' : '🔓'}</span>
-            <span>{isActivated ? 'Kurs Aktivdir' : 'İlk mövzu pulsuzdur'}</span>
+            <span>{isActivated ? `Kurs Aktivdir (Ay ${currentMonth})` : 'İlk mövzu pulsuzdur'}</span>
           </div>
         </div>
       </nav>
@@ -1194,7 +1052,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
                 <button onClick={() => activateCourse(accessCode)}>Aktivləşdir</button>
                 {activationError && <p className="error-text">{activationError}</p>}
                 <p className="help-text">
-                  Nümunə kod formatı: AI2024
+                  Nümunə kod formatı: AI2024 (sadəcə nümunədir, aktivləşdirmir)
                 </p>
               </div>
             </div>
@@ -1469,7 +1327,6 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
           font-size: 13px;
         }
         
-        /* İZLƏ BUTTONU */
         .watch-button {
           display: flex;
           align-items: center;
