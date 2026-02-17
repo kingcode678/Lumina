@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 const Editor = () => {
-  const [code, setCode] = useState(`import pandas as pd\n# Kompyuterdən fayl yüklədikdən sonra adını aşağıda yazın\ntry:\n    df = pd.read_csv("fayl_adi.csv")\n    print(df.head())\nexcept:\n    print("Fayl tapılmadı. Zəhmət olmasa fayl seçin.")`);
+  // Nümunə kod hissəsi sadəcə print("Salam") olaraq dəyişdirildi
+  const [code, setCode] = useState(`print("Salam")`);
   const [output, setOutput] = useState('Sistem başladılır...');
   const [plotUrl, setPlotUrl] = useState(null);
   const [isReady, setIsReady] = useState(false);
@@ -25,7 +26,6 @@ const Editor = () => {
     initPython();
   }, []);
 
-  // --- YENİ: Faylı Kompyuterdən Virtual Yaddaşa Yükləyən Funksiya ---
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file || !isReady) return;
@@ -34,7 +34,6 @@ const Editor = () => {
     reader.onload = async (event) => {
       const content = event.target.result;
       try {
-        // Faylı Pyodide-ın virtual fayl sisteminə (FS) yazırıq
         pyodideRef.current.FS.writeFile(file.name, content);
         setOutput(`'${file.name}' uğurla yükləndi. İndi Python-da bu adla müraciət edə bilərsiniz.`);
       } catch (err) {
@@ -50,6 +49,7 @@ const Editor = () => {
     setPlotUrl(null);
     
     try {
+      // Kitabxanaların dinamik yüklənməsi məntiqi qorunub
       if (code.includes('import matplotlib') || code.includes('import plt')) {
         setOutput('Matplotlib yüklənir...\n');
         await pyodideRef.current.loadPackage('matplotlib');
@@ -109,7 +109,6 @@ def get_plot():
       <div style={{ padding: '10px', background: '#2d2d2d', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <span style={{ color: '#00ff00', fontSize: '12px', fontFamily: 'monospace' }}>PYTHON DYNAMIC LAB</span>
-          {/* FAYL YÜKLƏMƏ DÜYMƏSİ */}
           <input 
             type="file" 
             onChange={handleFileUpload} 
