@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 const Editor = () => {
-  // Nümunə kod hissəsi sadəcə print("Salam") olaraq dəyişdirildi
+  // Nümunə kod hissəsi
   const [code, setCode] = useState(`print("Salam")`);
   const [output, setOutput] = useState('Sistem başladılır...');
   const [plotUrl, setPlotUrl] = useState(null);
@@ -49,7 +49,7 @@ const Editor = () => {
     setPlotUrl(null);
     
     try {
-      // Kitabxanaların dinamik yüklənməsi məntiqi qorunub
+      // Dinamik Paket Yükləmə Məntiqi
       if (code.includes('import matplotlib') || code.includes('import plt')) {
         setOutput('Matplotlib yüklənir...\n');
         await pyodideRef.current.loadPackage('matplotlib');
@@ -61,6 +61,11 @@ const Editor = () => {
       if (code.includes('import pandas') || code.includes('import pd')) {
         setOutput(prev => prev + 'Pandas yüklənir...\n');
         await pyodideRef.current.loadPackage('pandas');
+      }
+      // --- YENİ: Seaborn Dəstəyi ---
+      if (code.includes('import seaborn') || code.includes('import sns')) {
+        setOutput(prev => prev + 'Seaborn yüklənir...\n');
+        await pyodideRef.current.loadPackage('seaborn');
       }
 
       await pyodideRef.current.runPythonAsync(`
