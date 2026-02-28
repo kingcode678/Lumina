@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { auth, db } from '../firebase';
 import { 
   doc, 
@@ -24,7 +24,10 @@ import {
   BarChart3,
   Video,
   Play,
-  ExternalLink
+  ExternalLink,
+  CheckSquare,
+  Loader2,
+  Play as RunIcon
 } from 'lucide-react';
 import '../styles/AI.css';
 
@@ -53,6 +56,9 @@ import { topicai20 } from '../data/topicai20';
 // Import Editor component
 import Editor from './Editor';
 
+// Import AI Analysis component - DÜZƏLDİLMİŞ IMPORT
+import AIAnalysis, { useAIMentor } from './AIAnalysis';
+
 const topics = [
   topicai1, topicai2, topicai3, topicai4, topicai5,
   topicai6, topicai7, topicai8, topicai9, topicai10,
@@ -62,8 +68,8 @@ const topics = [
 
 const COURSE_ID = 'ai-python';
 
-// API Key
-const GROQ_API_KEY = process.env.REACT_APP_GROQ_API_KEY;
+// API Key - Birbaşa kodda
+const GROQ_API_KEY = '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';
 
 // Navigation items for mobile menu
 const NAV_ITEMS = [
@@ -248,30 +254,21 @@ const AI = () => {
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
+  
+  // KOD TAPŞIRIĞI STATE-ləri
   const [exerciseCode, setExerciseCode] = useState('');
   const [exerciseOutput, setExerciseOutput] = useState('');
-  const [analysisData, setAnalysisData] = useState({
-    weeklyProgress: [],
-    completedTopics: [],
-    quizScores: [],
-    codingAttempts: [],
-    totalTimeSpent: 0,
-    pythonSkillScores: {
-      basics: 0,
-      dataStructures: 0,
-      oop: 0,
-      numpy: 0,
-      pandas: 0,
-      visualization: 0,
-      statistics: 0
-    }
-  });
+  const [isCheckingCode, setIsCheckingCode] = useState(false);
+  const [codeRunSuccess, setCodeRunSuccess] = useState(null);
   
   const [user, setUser] = useState(null);
   const [activationData, setActivationData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activationError, setActivationError] = useState('');
   const [currentMonth, setCurrentMonth] = useState(0);
+
+  // AI Mentor hook - DÜZƏLDİLMİŞ FUNKSİYA ADLARI
+  const { saveQuizAttempt, saveCodeAttempt } = useAIMentor();
 
   // Mobile menu state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -418,7 +415,6 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
     return () => unsubscribe();
   }, []);
 
-  // FRONTEND.JSX İLƏ TAM EYNİ - checkUserActivation
   const checkUserActivation = async (userId) => {
     try {
       const codeRef = doc(db, 'users', userId, 'activationCodes', COURSE_ID);
@@ -439,8 +435,6 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
       } else {
         setIsActivated(false);
       }
-
-      await loadUserAnalysis(userId);
       
     } catch (error) {
       console.error('Aktivləşdirmə yoxlama xətası:', error);
@@ -449,27 +443,6 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
     }
   };
 
-  const loadUserAnalysis = async (userId) => {
-    try {
-      const analysisRef = doc(db, 'users', userId, 'courseProgress', COURSE_ID);
-      const analysisSnap = await getDoc(analysisRef);
-      
-      if (analysisSnap.exists()) {
-        setAnalysisData(analysisSnap.data());
-      } else {
-        const savedAnalysis = localStorage.getItem('ai_course_analysis');
-        if (savedAnalysis) {
-          const parsed = JSON.parse(savedAnalysis);
-          setAnalysisData(parsed);
-          await setDoc(analysisRef, parsed);
-        }
-      }
-    } catch (error) {
-      console.error('Analiz yükləmə xətası:', error);
-    }
-  };
-
-  // FRONTEND.JSX İLƏ TAM EYNİ - activateCourse
   const activateCourse = async (inputCode) => {
     setActivationError('');
     
@@ -543,10 +516,17 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
     }
   }, []);
 
+  // KOD TAPŞIRIĞI
   useEffect(() => {
     const topic = topics[currentTopic];
-    if (topic && topic.starterCode) {
-      setExerciseCode(topic.exercise?.starterCode || '');
+    if (topic && topic.exercise && topic.exercise.starterCode) {
+      setExerciseCode(topic.exercise.starterCode);
+      setExerciseOutput('');
+      setCodeRunSuccess(null);
+    } else {
+      setExerciseCode('');
+      setExerciseOutput('');
+      setCodeRunSuccess(null);
     }
   }, [currentTopic]);
 
@@ -556,7 +536,6 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
     return false;
   };
 
-  // Handle topic selection from mobile menu
   const handleTopicSelect = (idx) => {
     setCurrentTopic(idx);
     setQuizSubmitted(false);
@@ -565,224 +544,110 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
     setIsMobileMenuOpen(false);
   };
 
-  // Handle tab selection from mobile menu
   const handleTabSelect = (tabId) => {
     setActiveTab(tabId);
     setIsMobileMenuOpen(false);
   };
 
-  const runExerciseCode = async (code) => {
-    setExerciseCode(code);
-  };
+  // KODU İŞLƏT və OUTPUT YAZ
+  const handleCodeRun = useCallback((output, error = null) => {
+    console.log('Code run result:', output, 'Error:', error);
+    setExerciseOutput(output || error || '');
+    setCodeRunSuccess(!error && output && !output.toLowerCase().includes('error') && !output.toLowerCase().includes('xəta'));
+  }, []);
 
-  const updateSkillScore = (topicIndex) => {
-    const skillCategories = {
-      0: 'basics', 1: 'dataStructures', 2: 'basics', 3: 'basics', 4: 'basics',
-      5: 'basics', 6: 'basics', 7: 'basics', 8: 'oop', 9: 'oop',
-      10: 'numpy', 11: 'numpy', 12: 'numpy', 13: 'statistics', 14: 'statistics',
-      15: 'pandas', 16: 'pandas', 17: 'pandas', 18: 'visualization', 19: 'visualization'
-    };
+  // KODU AI İLƏ YOXLA - DÜZƏLDİLMİŞ
+  const handleCheckCode = async () => {
+    if (!user) {
+      alert('Əvvəlcə daxil olun!');
+      return;
+    }
     
-    const skill = skillCategories[topicIndex];
-    if (skill) {
-      setAnalysisData(prev => ({
-        ...prev,
-        pythonSkillScores: {
-          ...prev.pythonSkillScores,
-          [skill]: Math.min(100, (prev.pythonSkillScores[skill] || 0) + 10)
-        }
-      }));
+    if (!exerciseCode.trim()) {
+      alert('Zəhmət olmasa, əvvəlcə kod yazın!');
+      return;
+    }
+
+    if (!exerciseOutput.trim()) {
+      console.warn('Output boşdur, amma kod analizi göndərilir...');
+    }
+    
+    setIsCheckingCode(true);
+    
+    try {
+      const isSuccess = codeRunSuccess === true;
+      const errorMsg = codeRunSuccess === false ? exerciseOutput : null;
+      
+      console.log('Sending to AI Analysis:', {
+        userId: user.uid,
+        courseId: COURSE_ID,
+        topicId: currentTopic + 1,
+        codeLength: exerciseCode.length,
+        outputLength: exerciseOutput.length,
+        isSuccess,
+        hasError: !!errorMsg
+      });
+      
+      // DÜZƏLDİLMİŞ: saveCodeAttempt istifadə et və tapşırıq datasını göndər
+      await saveCodeAttempt(
+        user.uid,
+        COURSE_ID,
+        currentTopic + 1,
+        exerciseCode,
+        exerciseOutput,
+        errorMsg,
+        isSuccess,
+        currentTopicData.exercise // Tapşırıq datası
+      );
+      
+      if (isSuccess) {
+        alert('✅ Kod uğurla yoxlandı! AI mentor tövsiyələri Analiz bölməsindədir.');
+      } else {
+        alert('⚠️ Kod göndərildi. Xətalar Analiz bölməsində ətraflı izah olunacaq.');
+      }
+      
+      setActiveTab('analysis');
+      
+    } catch (err) {
+      console.error('Kod yoxlama xətası:', err);
+      alert('Xəta baş verdi: ' + err.message);
+    } finally {
+      setIsCheckingCode(false);
     }
   };
 
-  const handleQuizSubmit = () => {
+  // Quiz submit - DÜZƏLDİLMİŞ
+  const handleQuizSubmit = async () => {
     const topic = topics[currentTopic];
     let score = 0;
-    topic.quiz.forEach((q, idx) => {
-      if (quizAnswers[idx] === q.correctAnswer) score++;
-    });
+    
+    // Hər sual üçün nəticələri yoxla və AI Analizinə göndər
+    for (let idx = 0; idx < topic.quiz.length; idx++) {
+      const q = topic.quiz[idx];
+      const isCorrect = quizAnswers[idx] === q.correctAnswer;
+      
+      if (isCorrect) score++;
+      
+      // AI Analizinə göndər - DÜZƏLDİLMİŞ: saveQuizAttempt istifadə et və sual datasını göndər
+      if (user) {
+        try {
+          await saveQuizAttempt(
+            user.uid,
+            COURSE_ID,
+            currentTopic + 1,
+            idx,
+            q.options[quizAnswers[idx]] || 'Cavab verilməyib',
+            isCorrect,
+            q // Sual datası
+          );
+        } catch (err) {
+          console.error('Quiz nəticəsi göndərmə xətası:', err);
+        }
+      }
+    }
+    
     setQuizScore(score);
     setQuizSubmitted(true);
-    
-    updateAnalysis('quizScores', {
-      topicId: currentTopic + 1,
-      score: score,
-      total: topic.quiz.length,
-      timestamp: new Date().toISOString()
-    });
-
-    if (score >= 7) {
-      updateAnalysis('completedTopics', currentTopic + 1);
-      updateSkillScore(currentTopic);
-    }
-  };
-
-  const updateAnalysis = async (field, data) => {
-    const newAnalysis = { ...analysisData };
-    if (Array.isArray(newAnalysis[field])) {
-      if (field === 'completedTopics') {
-        if (!newAnalysis[field].includes(data)) {
-          newAnalysis[field].push(data);
-        }
-      } else {
-        newAnalysis[field].push(data);
-      }
-    }
-    setAnalysisData(newAnalysis);
-    
-    localStorage.setItem('ai_course_analysis', JSON.stringify(newAnalysis));
-    
-    if (user) {
-      try {
-        const analysisRef = doc(db, 'users', user.uid, 'courseProgress', COURSE_ID);
-        await setDoc(analysisRef, newAnalysis, { merge: true });
-      } catch (error) {
-        console.error('Analiz saxlama xətası:', error);
-      }
-    }
-  };
-
-  const calculateWeeklyProgress = () => {
-    const weeks = 4;
-    const topicsPerWeek = 5;
-    const progress = [];
-    
-    for (let week = 0; week < weeks; week++) {
-      const completed = analysisData.completedTopics.filter(id => 
-        id > week * topicsPerWeek && id <= (week + 1) * topicsPerWeek
-      ).length;
-      
-      progress.push({
-        week: week + 1,
-        completed: completed,
-        total: topicsPerWeek,
-        percentage: (completed / topicsPerWeek) * 100
-      });
-    }
-    return progress;
-  };
-
-  const calculateMonthlyStats = () => {
-    const totalQuizzes = analysisData.quizScores.length;
-    const avgScore = totalQuizzes > 0 
-      ? analysisData.quizScores.reduce((acc, q) => acc + (q.score / q.total) * 100, 0) / totalQuizzes 
-      : 0;
-    const codingSuccess = analysisData.codingAttempts.filter(a => a.success).length;
-    const totalCoding = analysisData.codingAttempts.length;
-    
-    return {
-      topicsCompleted: analysisData.completedTopics.length,
-      totalTopics: 20,
-      averageQuizScore: avgScore.toFixed(1),
-      codingSuccessRate: totalCoding > 0 ? ((codingSuccess / totalCoding) * 100).toFixed(1) : 0,
-      totalCodingAttempts: totalCoding
-    };
-  };
-
-  const getSkillData = () => {
-    const skills = analysisData.pythonSkillScores || {};
-    return [
-      { name: 'Python Əsasları', value: Math.round((skills.basics + skills.dataStructures) / 2 || 0) },
-      { name: 'OOP', value: skills.oop || 0 },
-      { name: 'NumPy', value: skills.numpy || 0 },
-      { name: 'Statistika', value: skills.statistics || 0 },
-      { name: 'Pandas', value: skills.pandas || 0 },
-      { name: 'Vizualizasiya', value: skills.visualization || 0 }
-    ];
-  };
-
-  const renderAnalysis = () => {
-    const weekly = calculateWeeklyProgress();
-    const monthly = calculateMonthlyStats();
-    const skills = getSkillData();
-    
-    return (
-      <div className="analysis-section">
-        <h3>📊 AI Kurs Təhlili</h3>
-        
-        {isActivated && (
-          <div className="activation-info-banner">
-            <p>✅ Kurs Aktivdir | Ay: {currentMonth}/4</p>
-          </div>
-        )}
-        
-        <div className="stats-grid">
-          <div className="stat-card">
-            <h4>Ümumi Progress</h4>
-            <div className="progress-circle">
-              <span>{monthly.topicsCompleted}/{monthly.totalTopics}</span>
-              <small>Mövzu</small>
-            </div>
-          </div>
-          
-          <div className="stat-card">
-            <h4>Ortalama Quiz</h4>
-            <div className="score-display">{monthly.averageQuizScore}%</div>
-          </div>
-          
-          <div className="stat-card">
-            <h4>Kod Uğuru</h4>
-            <div className="success-rate">{monthly.codingSuccessRate}%</div>
-            <small>{monthly.totalCodingAttempts} cəhd</small>
-          </div>
-        </div>
-
-        <div className="skills-radar">
-          <h4>Python Bacarıqlar</h4>
-          <div className="radar-grid">
-            {skills.map((skill, idx) => (
-              <div key={idx} className="skill-bar">
-                <span className="skill-name">{skill.name}</span>
-                <div className="skill-track">
-                  <div className="skill-fill" style={{width: skill.value + '%'}}/>
-                </div>
-                <span className="skill-value">{skill.value}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="weekly-progress">
-          <h4>Həftəlik Progress</h4>
-          {weekly.map((week, idx) => (
-            <div key={idx} className="week-bar">
-              <span>Həftə {week.week}</span>
-              <div className="progress-track">
-                <div className="progress-fill" style={{width: week.percentage + '%'}}/>
-              </div>
-              <span>{week.completed}/{week.total}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="topic-breakdown">
-          <h4>Mövzu Detalları</h4>
-          <div className="topic-status-grid">
-            {topics.map((topic, idx) => {
-              const isCompleted = analysisData.completedTopics.includes(idx + 1);
-              const quizData = analysisData.quizScores.find(q => q.topicId === idx + 1);
-              
-              return (
-                <div 
-                  key={idx} 
-                  className={'topic-status ' + (isCompleted ? 'completed' : '')}
-                  onClick={() => setCurrentTopic(idx)}
-                >
-                  <span className="topic-num">{idx + 1}</span>
-                  <span className="topic-title">{topic.title}</span>
-                  {quizData && (
-                    <span className="quiz-badge">
-                      {Math.round((quizData.score / quizData.total) * 100)}%
-                    </span>
-                  )}
-                  {isCompleted && <CheckCircle2 size={16} className="check-icon"/>}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    );
   };
 
   // Video bölməsi
@@ -791,8 +656,9 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
     const topicVideos = aiVideoLinks.filter(video => video.topicId === currentTopicId);
 
     const handleWatchClick = (videoUrl) => {
-      if (videoUrl && videoUrl.trim() !== '') {
-        window.open(videoUrl, '_blank', 'noopener,noreferrer');
+      const cleanUrl = videoUrl?.trim();
+      if (cleanUrl) {
+        window.open(cleanUrl, '_blank', 'noopener,noreferrer');
       } else {
         alert('Bu video tezliklə əlavə olunacaq!');
       }
@@ -861,7 +727,6 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
 
   const hasAccess = checkAccess();
   const currentTopicData = topics[currentTopic];
-  const completedCount = analysisData.completedTopics.length;
 
   if (loading) {
     return <div className="loading-screen">Yüklənir...</div>;
@@ -881,7 +746,6 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
             <span className="hamburger-line"></span>
             <span className="hamburger-line"></span>
             <span className="hamburger-line"></span>
-            {completedCount > 0 && <span className="menu-badge">{completedCount}</span>}
           </button>
           
           <h1>🤖 Python AI Kursu</h1>
@@ -950,8 +814,6 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
             <div className="drawer-section-title">📖 AI Mövzuları ({topics.length})</div>
             <div className="drawer-topics">
               {topics.map((topic, idx) => {
-                const isCompleted = analysisData.completedTopics.includes(idx + 1);
-                const quizData = analysisData.quizScores.find(q => q.topicId === idx + 1);
                 const isLocked = !isActivated && idx !== 0;
                 const isActive = currentTopic === idx;
                 
@@ -971,12 +833,6 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
                     <div className="drawer-topic-badge">
                       {idx === 0 && <span className="free-badge">FREE</span>}
                       {isLocked && <Lock size={16} className="lock-icon"/>}
-                      {!isLocked && quizData && !isCompleted && (
-                        <span className="progress-badge">
-                          {Math.round((quizData.score / quizData.total) * 100)}%
-                        </span>
-                      )}
-                      {isCompleted && <CheckCircle2 size={20} className="completed-badge"/>}
                     </div>
                   </button>
                 );
@@ -1014,9 +870,6 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
               >
                 <span className="topic-number">{idx + 1}</span>
                 <span className="topic-name">{topic.title}</span>
-                {analysisData.completedTopics.includes(idx + 1) && (
-                  <CheckCircle2 size={16} className="check-icon"/>
-                )}
               </button>
             ))}
           </div>
@@ -1071,44 +924,74 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
                 {activeTab === 'editor' && (
                   <Editor 
                     mode="editor"
-                    starterCode={currentTopicData.starterCode?.python || ''}
-                    onCodeRun={(output) => {}}
+                    starterCode={currentTopicData.starterCode?.python || '# Python kodu yazın\nprint("Salam Dünya!")'}
+                    onCodeRun={handleCodeRun}
                   />
                 )}
 
                 {activeTab === 'exercise' && (
                   <div className="exercise-section">
-                    <h3>{currentTopicData.exercise.title}</h3>
-                    <p>{currentTopicData.exercise.description}</p>
-                    <div className="requirements">
-                      <h4>Tələblər:</h4>
-                      <ul>
-                        {currentTopicData.exercise.requirements.map((req, idx) => (
-                          <li key={idx}>{req}</li>
-                        ))}
-                      </ul>
+                    <h3>{currentTopicData.exercise?.title || 'Kod Tapşırığı'}</h3>
+                    <p>{currentTopicData.exercise?.description || 'Aşağıdakı tələbləri yerinə yetirin:'}</p>
+                    
+                    {currentTopicData.exercise?.requirements && (
+                      <div className="requirements">
+                        <h4>Tələblər:</h4>
+                        <ul>
+                          {currentTopicData.exercise.requirements.map((req, idx) => (
+                            <li key={idx}>{req}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    <div className="editor-wrapper">
+                      <Editor 
+                        mode="exercise"
+                        starterCode={exerciseCode || currentTopicData.exercise?.starterCode || '# Kodunuzu bura yazın'}
+                        onCodeRun={handleCodeRun}
+                      />
                     </div>
-                    <Editor 
-                      mode="exercise"
-                      starterCode={exerciseCode}
-                      onCodeRun={(output) => {
-                        setExerciseOutput(output);
-                        updateAnalysis('codingAttempts', {
-                          topicId: currentTopic + 1,
-                          timestamp: new Date().toISOString(),
-                          success: !output.includes('Xəta:')
-                        });
-                        if (!output.includes('Xəta:')) {
-                          updateSkillScore(currentTopic);
-                        }
-                      }}
-                    />
+                    
                     {exerciseOutput && (
-                      <div className="exercise-output">
-                        <h4>Nəticə:</h4>
+                      <div className={`exercise-output ${codeRunSuccess ? 'success' : 'error'}`}>
+                        <h4>
+                          <RunIcon size={16} />
+                          Nəticə:
+                          {codeRunSuccess !== null && (
+                            <span className={`status-badge ${codeRunSuccess ? 'success' : 'error'}`}>
+                              {codeRunSuccess ? '✅ Uğurlu' : '❌ Xəta'}
+                            </span>
+                          )}
+                        </h4>
                         <pre>{exerciseOutput}</pre>
                       </div>
                     )}
+
+                    <div className="code-check-section">
+                      <button 
+                        className="check-code-btn"
+                        onClick={handleCheckCode}
+                        disabled={isCheckingCode || !exerciseCode.trim()}
+                      >
+                        {isCheckingCode ? (
+                          <>
+                            <Loader2 className="spin" size={18} />
+                            AI Analiz edir...
+                          </>
+                        ) : (
+                          <>
+                            <CheckSquare size={18} />
+                            Kodu AI ilə Yoxla
+                          </>
+                        )}
+                      </button>
+                      <p className="check-hint">
+                        {exerciseOutput 
+                          ? 'Kodunuzu AI mentor ilə yoxlayın və fərdi tövsiyələr alın' 
+                          : 'Əvvəlcə kodu işlədin (Run düyməsi), sonra AI ilə yoxlayın'}
+                      </p>
+                    </div>
                   </div>
                 )}
 
@@ -1155,7 +1038,17 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
                   </div>
                 )}
 
-                {activeTab === 'analysis' && renderAnalysis()}
+                {activeTab === 'analysis' && (
+                  <AIAnalysis 
+                    user={user}
+                    courseId={COURSE_ID}
+                    currentTopic={currentTopic}
+                    topics={topics}
+                    isActivated={isActivated}
+                    currentMonth={currentMonth}
+                  />
+                )}
+                
                 {activeTab === 'videos' && renderVideoHelp()}
               </div>
             </>
@@ -1231,7 +1124,7 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
         )}
       </div>
 
-      {/* Video CSS */}
+      {/* CSS Styles */}
       <style>{`
         .video-help-section {
           padding: 20px;
@@ -1375,6 +1268,166 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
           opacity: 0.5;
         }
         
+        .exercise-section {
+          padding: 20px;
+        }
+        
+        .exercise-section h3 {
+          margin: 0 0 12px 0;
+          color: #2d3748;
+          font-size: 20px;
+        }
+        
+        .exercise-section > p {
+          color: #718096;
+          margin-bottom: 16px;
+        }
+        
+        .requirements {
+          background: #f7fafc;
+          padding: 16px;
+          border-radius: 8px;
+          margin-bottom: 20px;
+        }
+        
+        .requirements h4 {
+          margin: 0 0 10px 0;
+          color: #4a5568;
+          font-size: 14px;
+          text-transform: uppercase;
+        }
+        
+        .requirements ul {
+          margin: 0;
+          padding-left: 20px;
+        }
+        
+        .requirements li {
+          margin-bottom: 6px;
+          color: #4a5568;
+          font-size: 14px;
+        }
+        
+        .editor-wrapper {
+          margin-bottom: 16px;
+          border: 2px solid #e2e8f0;
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        
+        .exercise-output {
+          margin: 16px 0;
+          padding: 16px;
+          background: #f7fafc;
+          border-radius: 8px;
+          border-left: 4px solid #cbd5e0;
+        }
+        
+        .exercise-output.success {
+          background: #f0fff4;
+          border-left-color: #48bb78;
+        }
+        
+        .exercise-output.error {
+          background: #fff5f5;
+          border-left-color: #f56565;
+        }
+        
+        .exercise-output h4 {
+          margin: 0 0 10px 0;
+          font-size: 14px;
+          color: #2d3748;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        
+        .status-badge {
+          margin-left: auto;
+          padding: 4px 10px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 600;
+        }
+        
+        .status-badge.success {
+          background: #c6f6d5;
+          color: #22543d;
+        }
+        
+        .status-badge.error {
+          background: #fed7d7;
+          color: #c53030;
+        }
+        
+        .exercise-output pre {
+          margin: 0;
+          padding: 12px;
+          background: #1a202c;
+          color: #e2e8f0;
+          border-radius: 6px;
+          font-size: 13px;
+          overflow-x: auto;
+          max-height: 200px;
+          overflow-y: auto;
+        }
+        
+        .code-check-section {
+          margin-top: 20px;
+          padding: 20px;
+          background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+          border: 2px dashed #667eea50;
+          border-radius: 12px;
+          text-align: center;
+        }
+        
+        .check-code-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 14px 28px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 15px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          box-shadow: 0 4px 6px rgba(102, 126, 234, 0.2);
+        }
+        
+        .check-code-btn:hover:not(:disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .check-code-btn:active:not(:disabled) {
+          transform: translateY(0);
+        }
+        
+        .check-code-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          background: #a0aec0;
+        }
+        
+        .check-hint {
+          margin: 12px 0 0 0;
+          font-size: 13px;
+          color: #667eea;
+          font-weight: 500;
+        }
+        
+        .spin {
+          animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        
         @media (max-width: 768px) {
           .video-card {
             flex-direction: column;
@@ -1385,6 +1438,15 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
           .watch-button {
             width: 100%;
             justify-content: center;
+          }
+          
+          .check-code-btn {
+            width: 100%;
+            justify-content: center;
+          }
+          
+          .exercise-output pre {
+            font-size: 12px;
           }
         }
       `}</style>

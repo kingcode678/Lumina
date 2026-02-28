@@ -7,7 +7,7 @@ import {
   signInWithEmailAndPassword,
   updateProfile 
 } from '../firebase';
-import { doc, setDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Code2, Mail, Lock, User, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import '../styles/LoginSignup.css';
 
@@ -68,36 +68,38 @@ const LoginSignup = () => {
     return code;
   };
 
-  // İstifadəçi adına görə təmizlənmiş ID yarat
-  const createUserNameId = (name) => {
-    return name
-      .toLowerCase()
-      .replace(/\s+/g, '-')           // Boşluqları tire ilə əvəz et
-      .replace(/[^a-z0-9-]/g, '')     // Yalnız hərf, rəqəm və tire
-      .substring(0, 20);              // Maksimum 20 simvol
-  };
-
-  // İstifadəçi üçün aktivləşdirmə kodları yarat - İSTİFADƏÇİ ADINA GÖRƏ QRUPLAŞDIRILMIŞ
+  // BOTACTIVATIONDATA KOLLEKSİYASINA DOCUMENT ƏLAVƏ ET
   const createActivationCodes = async (userId, userEmail, userName) => {
     try {
-      const userNameId = createUserNameId(userName);
-      
       const courses = [
         { id: 'frontend', name: 'Frontend Developer', duration: 4, price: 12 },
-        { id: 'ai-python', name: 'Süni İntelekt', duration: 4, price: 15 }
+        { id: 'ai-python', name: 'Süni İntelekt', duration: 4, price: 20 }
       ];
 
-      const codes = [];
-
+      // Kurslar üçün kodları hazırla
+      const coursesData = {};
+      
       for (const course of courses) {
         const code = generateUniqueCode();
         
+        coursesData[course.id] = {
+          code: code,
+          status: 'pending',
+          payment: {
+            status: 'pending',
+            amount: course.price,
+            currency: 'AZN'
+          },
+          courseName: course.name,
+          duration: course.duration
+        };
+
+        // Köhnə activationCodes kolleksiyası (Frontend.jsx və AI.jsx üçün uyğunluq)
         const codeData = {
           code: code,
           userId: userId,
           userEmail: userEmail,
-          userName: userName,           // İstifadəçi adı
-          userNameId: userNameId,       // Təmizlənmiş istifadəçi adı ID-si
+          userName: userName,
           course: course.id,
           courseName: course.name,
           status: 'pending',
@@ -117,34 +119,28 @@ const LoginSignup = () => {
           }
         };
 
-        // 1. Əsas activationCodes kolleksiyasında - KOD = DOCUMENT ID (Frontend.jsx üçün)
+        // activationCodes kolleksiyası
         await setDoc(doc(db, 'activationCodes', code), codeData);
-
-        // 2. İstifadəçi adına görə qruplaşdırılmış kolleksiya - Admin panel üçün asan axtarış
-        // Structure: activationCodesByUser/{userNameId}/codes/{code}
-        await setDoc(
-          doc(db, 'activationCodesByUser', userNameId, 'codes', code), 
-          codeData
-        );
-
-        // 3. User-in şəxsi activationCodes alt-kolleksiyasında
-        await setDoc(
-          doc(db, 'users', userId, 'activationCodes', course.id), 
-          codeData
-        );
-
-        codes.push({ 
-          course: course.name, 
-          code: code,
-          userName: userName,
-          userNameId: userNameId
-        });
+        
+        // User-in şəxsi activationCodes alt-kolleksiyası
+        await setDoc(doc(db, 'users', userId, 'activationCodes', course.id), codeData);
       }
 
-      console.log('Kodlar yaradıldı (istifadəçi adına görə qruplaşdırılmış):', codes);
-      return codes;
+      // BOTACTIVATIONDATA KOLLEKSİYASINA YAZ - userId = document ID
+      const botActivationData = {
+        userEmail: userEmail,
+        userName: userName,
+        courses: coursesData,
+        createdAt: serverTimestamp()
+      };
+
+      // userId ilə document yarat (əgər varsa yenilə)
+      await setDoc(doc(db, 'botActivationData', userId), botActivationData);
+      
+      console.log('botActivationData yaradıldı:', userId);
+
     } catch (error) {
-      console.error('Kod yaratma xətası:', error);
+      console.error('Activation codes xətası:', error);
       throw error;
     }
   };
@@ -187,7 +183,7 @@ const LoginSignup = () => {
           updatedAt: serverTimestamp()
         });
 
-        // 3. AKTİVLƏŞDİRMƏ KODLARINI YARAT - İSTİFADƏÇİ ADINA GÖRƏ QRUPLAŞDIRILMIŞ
+        // 3. BOTACTIVATIONDATA KOLLEKSİYASINA ƏLAVƏ ET
         await createActivationCodes(user.uid, formData.email, formData.name);
       }
       

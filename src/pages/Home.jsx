@@ -311,7 +311,7 @@ const Home = () => {
   const faqs = [
     {
       q: 'Kodu necə alıram?',
-      a: 'WhatsApp (055 547 36 56) və ya Telegram (@luminaedu) vasitəsilə əlaqə saxlayırsan. Ödənişini etdikdən sonra sənə unikal 8-simvollu kod göndəririk.'
+      a: 'WhatsApp (055 547 36 56) və ya Telegram (@lumina_payment_bot) vasitəsilə əlaqə saxlayırsan. Ödənişini etdikdən sonra sənə unikal 8-simvollu kod göndəririk.'
     },
     {
       q: 'Aylıq ödəniş necə işləyir?',
@@ -423,9 +423,9 @@ const Home = () => {
             <a href="#courses" className="btn btn-large btn-primary">
               Kursları Gör <ArrowRight size={20} />
             </a>
-            <button className="btn btn-large btn-ghost-light">
+           {/* <button className="btn btn-large btn-ghost-light">
               <PlayCircle size={20} /> Sınaq Dərsinə Bax
-            </button>
+            </button> */}
           </div>
         </div>
       </section>
@@ -637,7 +637,7 @@ const Home = () => {
             <div className="footer-column">
               <h4>Dəstək</h4>
               <a href="#faq">FAQ</a>
-              <a href="mailto:salam@lumina.az">salam@lumina.az</a>
+              <a href="mailto:salam@lumina.az">luminaedu1@gmail.com</a>
             </div>
           </div>
         </div>
