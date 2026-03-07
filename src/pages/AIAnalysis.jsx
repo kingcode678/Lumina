@@ -29,7 +29,7 @@ import {
 // ============================================
 // API KEY - BIRBAŞA KODDA
 // ============================================
-const GROQ_API_KEY = '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';
+const apiKey = process.env.REACT_APP_GROQ_API_KEY_Analiz;
 
 // ============================================
 // KONFiQURASIYA - LIMITLER
