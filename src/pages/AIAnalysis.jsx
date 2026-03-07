@@ -759,7 +759,7 @@ const AIAnalysis = ({ user, courseId, topics, currentMonth = 1 }) => {
       const response = await fetch(CONFIG.API_ENDPOINT, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Authorization': `Bearer ${process.env.REACT_APP_GROQ_API_KEY_Analiz}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
