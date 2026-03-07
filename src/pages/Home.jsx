@@ -20,7 +20,12 @@ import {
   Target,
   Heart,
   Users,
-  Sparkles
+  Sparkles,
+  CreditCard,
+  Phone,
+  MessageSquare,
+  Lock,
+  AlertCircle
 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth, db } from '../firebase';
@@ -29,6 +34,13 @@ import '../styles/Home.css';
 
 // API Key birbaşa burada təyin edilir (təhlükəsizlik üçün env dəyişkənində saxlamaq daha yaxşıdır)
 const GROQ_API_KEY = process.env.REACT_APP_GROQ_API_KEY;
+
+// Gizli kod konstantası
+const SECRET_ACCESS_CODE = 'sam3639mika';
+
+// Whatsapp nömrəsi konstantası
+const WHATSAPP_NUMBER = '994555473656';
+const WHATSAPP_LINK = `https://wa.me/${WHATSAPP_NUMBER}?text=Salam%2C%20Lumina%20kursu%20haqqında%20məlumat%20istəyirəm`;
 
 const Home = () => {
   const navigate = useNavigate();
@@ -49,6 +61,11 @@ const Home = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
+
+  // YENI: Frontend kursu bloklama state-ləri
+  const [showFrontendAlert, setShowFrontendAlert] = useState(false);
+  const [secretInput, setSecretInput] = useState('');
+  const [secretError, setSecretError] = useState(false);
 
   // Firebase auth listener və aktivləşdirmə kodları yaratmaq
   useEffect(() => {
@@ -120,6 +137,34 @@ const Home = () => {
     }
   };
 
+  // YENI: Frontend kursuna klik handler
+  const handleFrontendClick = (e) => {
+    e.preventDefault();
+    setShowFrontendAlert(true);
+    setSecretInput('');
+    setSecretError(false);
+  };
+
+  // YENI: Gizli kod yoxlama
+  const checkSecretCode = () => {
+    if (secretInput === SECRET_ACCESS_CODE) {
+      // Doğru kod, kursa yönləndir
+      setShowFrontendAlert(false);
+      navigate('/frontend');
+    } else {
+      // Yanlış kod
+      setSecretError(true);
+      setTimeout(() => setSecretError(false), 2000);
+    }
+  };
+
+  // YENI: Enter ilə yoxlama
+  const handleSecretKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      checkSecretCode();
+    }
+  };
+
   // Chatbot funksiyaları
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -143,7 +188,7 @@ const Home = () => {
         throw new Error('API açarı təyin edilməyib');
       }
 
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions  ', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${GROQ_API_KEY}`,
@@ -218,7 +263,8 @@ const Home = () => {
         'Video kömək',
         'AI köməkçi',
         'Real layihələr'
-      ]
+      ],
+      locked: true // YENI: Bloklu kurs
     },
     {
       id: 'ai',
@@ -235,53 +281,8 @@ const Home = () => {
         'Video kömək',
         'AI köməkçi',
         'Real layihələr'
-      ]
-    }
-  ];
-
-  const steps = [
-    {
-      number: '01',
-      title: 'Qeydiyyatdan Keç',
-      desc: 'Email ilə qeydiyyatdan keç və hesabını yarat. Sənə avtomatik aktivləşdirmə kodları təqdim ediləcək.'
-    },
-    {
-      number: '02',
-      title: 'Kod Al',
-      desc: 'WhatsApp (055 547 36 56) vasitəsilə əlaqə saxla, ödənişini et və sənə unikal kod təsdiqlənsin.'
-    },
-    {
-      number: '03',
-      title: 'Aktivləşdir',
-      desc: 'Profilindəki kodu daxil et və seçdiyin kursun ilk ayı sənə açılsın.'
-    },
-    {
-      number: '04',
-      title: 'Öyrən',
-      desc: 'Həftəlik mövzuları tamamla, kod yaz, quizlər həll et, praktika et.'
-    }
-  ];
-
-  const features = [
-    {
-      icon: <Zap size={32} />,
-      title: 'Azərbaycanca Məzmun',
-      desc: 'Bütün dərslər ana dilində, sadə və anlaşıqlı izahlarla.'
-    },
-    {
-      icon: <Code2 size={32} />,
-      title: 'Praktika Yönümlü',
-      desc: 'Hər mövzuda kod editoru, real tapşırıqlar və layihələr.'
-    },
-    {
-      icon: <MessageCircle size={32} />,
-      title: 'AI Dəstəyi',
-      desc: '24/7 AI chatbot ilə dərhal cavab al, suallarını soruş.'
-    },
-    {
-      icon: <Shield size={32} />,
-      title: 'Aylıq Ödəniş',
-      desc: 'Uzunmüddətli öhdəlik yoxdur. Hər ay ayrı ödə, risk yoxdur.'
+      ],
+      locked: false
     }
   ];
 
@@ -308,14 +309,41 @@ const Home = () => {
     }
   ];
 
+  const features = [
+    {
+      icon: <Zap size={32} />,
+      title: 'Azərbaycanca Məzmun',
+      desc: 'Bütün dərslər ana dilində, sadə və anlaşıqlı izahlarla.'
+    },
+    {
+      icon: <Code2 size={32} />,
+      title: 'Praktika Yönümlü',
+      desc: 'Hər mövzuda kod editoru, real tapşırıqlar və layihələr.'
+    },
+    {
+      icon: <MessageCircle size={32} />,
+      title: 'AI Dəstəyi',
+      desc: '24/7 AI chatbot ilə dərhal cavab al, suallarını soruş.'
+    },
+    {
+      icon: <Shield size={32} />,
+      title: 'Aylıq Ödəniş',
+      desc: 'Uzunmüddətli öhdəlik yoxdur. Hər ay ayrı ödə, risk yoxdur.'
+    }
+  ];
+
   const faqs = [
     {
-      q: 'Kodu necə alıram?',
-      a: 'WhatsApp (055 547 36 56) və ya Telegram (@lumina_payment_bot) vasitəsilə əlaqə saxlayırsan. Ödənişini etdikdən sonra sənə unikal 8-simvollu kod göndəririk.'
+      q: 'Kurslara necə qoşula bilərəm?',
+      a: 'Saytda qeydiyyatdan keçin, istədiyiniz kursu seçin və ödəniş səhifəsindən çekinizi yükləyin. OCR sistemi avtomatik yoxlayacaq və kodunuzu verəcək.'
     },
     {
       q: 'Aylıq ödəniş necə işləyir?',
-      a: 'Hər ayın əvvəlində yeni kod alırsan. Kodu daxil etdikdə növbəti ayın məzmunu açılır. Köhnə ayın materialları isə 7 gün əlavə saxlanılır.'
+      a: 'Hər ayın əvvəlində ödəniş səhifəsindən yeni ödəniş edib çek yükləyirsiniz. Sistem avtomatik yoxlayıb yeni ayın kodunu verir.'
+    },
+    {
+      q: 'Promo kod nedir?',
+      a: 'Referal kodudur. Tanıdığınızın kodunu istifadə etsəniz 10% endirim alırsınız. Öz kodunuzu yaradıb başqalarına paylaşsanız, onların ödənişindən 30% qazanırsınız.'
     },
     {
       q: 'Kursu dondura bilərəmmi?',
@@ -354,10 +382,28 @@ const Home = () => {
 
           <div className={`nav-links ${isMenuOpen ? 'open' : ''}`}>
             <a href="#courses" className="nav-link">Kurslar</a>
-            <a href="#how-it-works" className="nav-link">Necə İşləyir</a>
             <a href="#about" className="nav-link">Haqqımızda</a>
             <a href="#features" className="nav-link">Üstünlüklər</a>
             <a href="#faq" className="nav-link">FAQ</a>
+            {/* YENI: Forum linki - ayrı səhifə */}
+            <Link to="/forum" className="nav-link nav-link-forum">
+              <MessageSquare size={16} />
+              Forum
+            </Link>
+            <a 
+              href={WHATSAPP_LINK} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="nav-link nav-link-whatsapp"
+            >
+              <Phone size={16} />
+              Əlaqə
+            </a>
+            {/* ÖDƏNIŞ LINKI - BURADA */}
+            <Link to="/payment" className="nav-link nav-link-highlight">
+              <CreditCard size={16} />
+              Ödəniş Et
+            </Link>
           </div>
 
           <div className="nav-actions">
@@ -381,6 +427,11 @@ const Home = () => {
                       </div>
                     </div>
                     <div className="profile-divider"></div>
+                    {/* PROFILE DROPDOWN-da ÖDƏNIŞ */}
+                    <Link to="/payment" className="profile-dropdown-item">
+                      <CreditCard size={16} />
+                      Ödəniş Et
+                    </Link>
                     <button onClick={handleLogout} className="logout-btn">
                       <LogOut size={16} />
                       Çıxış
@@ -400,6 +451,52 @@ const Home = () => {
           </div>
         </div>
       </nav>
+
+      {/* YENI: Frontend Alert Modal */}
+      {showFrontendAlert && (
+        <div className="frontend-alert-overlay" onClick={() => setShowFrontendAlert(false)}>
+          <div className="frontend-alert-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="alert-header">
+              <Lock size={32} className="lock-icon" />
+              <h3>Kurs Hazırlanır</h3>
+            </div>
+            <p className="alert-message">
+              Frontend Developer kursu tezliklə hazır olacaq. <br/>
+              <span className="alert-submessage">Səbir üçün təşəkkürlər!</span>
+            </p>
+            
+            {/* Gizli input bölməsi */}
+            <div className="secret-access-section">
+              <p className="secret-label">İdarəçi girişi:</p>
+              <div className="secret-input-wrapper">
+                <input
+                  type="password"
+                  placeholder="Giriş kodu..."
+                  value={secretInput}
+                  onChange={(e) => setSecretInput(e.target.value)}
+                  onKeyPress={handleSecretKeyPress}
+                  className={secretError ? 'error' : ''}
+                />
+                <button onClick={checkSecretCode} className="secret-btn">
+                  <ArrowRight size={18} />
+                </button>
+              </div>
+              {secretError && (
+                <p className="secret-error">
+                  <AlertCircle size={14} /> Yanlış kod
+                </p>
+              )}
+            </div>
+
+            <button 
+              className="alert-close-btn"
+              onClick={() => setShowFrontendAlert(false)}
+            >
+              Bağla
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Hero Section */}
       <section className="hero">
@@ -423,9 +520,19 @@ const Home = () => {
             <a href="#courses" className="btn btn-large btn-primary">
               Kursları Gör <ArrowRight size={20} />
             </a>
-           {/* <button className="btn btn-large btn-ghost-light">
-              <PlayCircle size={20} /> Sınaq Dərsinə Bax
-            </button> */}
+            {/* HERO CTA - ÖDƏNIŞ ET */}
+            <Link to="/payment" className="btn btn-large btn-secondary">
+              <CreditCard size={20} /> Ödəniş Et
+            </Link>
+            {/* Whatsapp ilə əlaqə buttonu */}
+            <a 
+              href={WHATSAPP_LINK} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="btn btn-large btn-whatsapp"
+            >
+              <Phone size={20} /> Whatsapp ilə Əlaqə
+            </a>
           </div>
         </div>
       </section>
@@ -442,12 +549,21 @@ const Home = () => {
 
         <div className="courses-grid">
           {courses.map((course) => (
-            <div key={course.id} className="course-card" style={{'--course-color': course.color}}>
+            <div 
+              key={course.id} 
+              className={`course-card ${course.locked ? 'locked' : ''}`} 
+              style={{'--course-color': course.color}}
+            >
               <div className="course-header" style={{background: course.color}}>
                 <div className="course-icon-wrapper">
                   {course.icon}
                 </div>
                 <div className="course-price-badge">{course.price}</div>
+                {course.locked && (
+                  <div className="locked-badge">
+                    <Lock size={16} /> Tezliklə
+                  </div>
+                )}
               </div>
               
               <div className="course-body">
@@ -472,35 +588,49 @@ const Home = () => {
                   ))}
                 </ul>
                 
-                <Link to={`/${course.id}`} className="btn btn-course">
-                  Ətraflı <ChevronRight size={18} />
-                </Link>
+                <div className="course-card-actions">
+                  {course.locked ? (
+                    <button 
+                      className="btn btn-course locked-btn"
+                      onClick={handleFrontendClick}
+                    >
+                      <Lock size={18} /> Tezliklə <ChevronRight size={18} />
+                    </button>
+                  ) : (
+                    <Link to={`/${course.id}`} className="btn btn-course">
+                      Ətraflı <ChevronRight size={18} />
+                    </Link>
+                  )}
+                  {/* KURS KARTINDA ÖDƏNIŞ */}
+                  <Link to="/payment" className="btn btn-payment-quick" title="Ödəniş Et">
+                    <CreditCard size={18} />
+                  </Link>
+                </div>
               </div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* How It Works */}
-      <section id="how-it-works" className="steps-section">
-        <div className="section-header light">
-          <span className="section-tag">PROSES</span>
-          <h2 className="section-title">4 Sadə Addımda Başla</h2>
-        </div>
-        
-        <div className="steps-grid">
-          {steps.map((step, idx) => (
-            <div key={idx} className="step-card">
-              <div className="step-number">{step.number}</div>
-              <h3 className="step-title">{step.title}</h3>
-              <p className="step-desc">{step.desc}</p>
-              {idx < steps.length - 1 && <div className="step-arrow">→</div>}
+      {/* Quick Payment Section */}
+      <section className="quick-payment-cta">
+        <div className="quick-payment-box">
+          <div className="quick-payment-text">
+            <Zap size={32} color="#fbbf24" />
+            <div>
+              <h3>Artıq Qeydiyyatdan Keçmisiniz?</h3>
+              <p>Ödəniş edib dərhal aktivləşdirmə kodu alın. OCR texnologiyası ilə çekiniz avtomatik yoxlanılır.</p>
             </div>
-          ))}
+          </div>
+          <Link to="/payment" className="btn btn-payment-large">
+            <CreditCard size={20} />
+            Ödənişə Keç
+            <ArrowRight size={20} />
+          </Link>
         </div>
       </section>
 
-      {/* About Section - YENİ EKLENDİ */}
+      {/* About Section */}
       <section id="about" className="about-section">
         <div className="section-header">
           <span className="section-tag">HAQQIMIZDA</span>
@@ -599,9 +729,10 @@ const Home = () => {
             <Link to="/signup" className="btn btn-large btn-white">
               Pulsuz Başla <ArrowRight size={20} />
             </Link>
-            <a href="https://wa.me/994555473656" target="_blank" rel="noopener noreferrer" className="btn btn-large btn-outline-white">
-              WhatsApp-la Yaz
-            </a>
+            {/* CTA BUTTONS - ÖDƏNIŞ */}
+            <Link to="/payment" className="btn btn-large btn-outline-white">
+              <CreditCard size={20} /> Ödəniş Et
+            </Link>
           </div>
         </div>
       </section>
@@ -620,24 +751,39 @@ const Home = () => {
             <div className="footer-social">
               <a href="#" className="social-link"><Twitter size={20} /></a>
               <a href="#" className="social-link"><MessageCircle size={20} /></a>
+              <a 
+                href={WHATSAPP_LINK} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="social-link whatsapp"
+              >
+                <Phone size={20} />
+              </a>
             </div>
           </div>
           
           <div className="footer-links">
             <div className="footer-column">
               <h4>Kurslar</h4>
-              <Link to="/frontend">Frontend</Link>
+              <span className="footer-link-locked" onClick={handleFrontendClick}>
+                Frontend <Lock size={12} />
+              </span>
               <Link to="/ai">Süni İntelekt</Link>
             </div>
             <div className="footer-column">
               <h4>Şirkət</h4>
               <a href="#about">Haqqımızda</a>
-              <a href="https://wa.me/994555473656">Əlaqə</a>
+              <Link to="/payment">Ödəniş</Link>
+              {/* YENI: Footer-da Forum linki */}
+              <Link to="/forum">Forum</Link>
+              <a href={WHATSAPP_LINK} target="_blank" rel="noopener noreferrer">
+                Əlaqə (Whatsapp)
+              </a>
             </div>
             <div className="footer-column">
               <h4>Dəstək</h4>
               <a href="#faq">FAQ</a>
-              <a href="mailto:salam@lumina.az">luminaedu1@gmail.com</a>
+              <a href="mailto:luminaedu1@gmail.com">luminaedu1@gmail.com</a>
             </div>
           </div>
         </div>
@@ -705,6 +851,17 @@ const Home = () => {
           </div>
         )}
       </div>
+
+      {/* Floating Whatsapp Button */}
+      <a 
+        href={WHATSAPP_LINK} 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="floating-whatsapp-btn"
+        title="Whatsapp ilə Əlaqə"
+      >
+        <Phone size={28} />
+      </a>
     </div>
   );
 };

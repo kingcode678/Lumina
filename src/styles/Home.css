@@ -8,6 +8,7 @@
 :root {
   --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
   --secondary-gradient: linear-gradient(135deg, #ec4899 0%, #f43f5e 100%);
+  --whatsapp-gradient: linear-gradient(135deg, #25d366 0%, #128c7e 100%);
   --dark-bg: #0a0f1c;
   --darker-bg: #050810;
   --card-bg: rgba(20, 25, 40, 0.95);
@@ -17,6 +18,7 @@
   --border-color: rgba(148, 163, 184, 0.15);
   --success-color: #34d399;
   --warning-color: #fbbf24;
+  --error-color: #ef4444;
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
@@ -139,6 +141,9 @@ body {
   position: relative;
   letter-spacing: 0.01em;
   padding: 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .nav-link:hover {
@@ -159,6 +164,44 @@ body {
 
 .nav-link:hover::after {
   width: 100%;
+}
+
+/* YENI: Forum linki */
+.nav-link-forum {
+  color: #fbbf24 !important;
+  font-weight: 600;
+}
+
+.nav-link-forum:hover {
+  color: #f59e0b !important;
+}
+
+/* YENI: Whatsapp linki */
+.nav-link-whatsapp {
+  color: #25d366 !important;
+  font-weight: 600;
+}
+
+.nav-link-whatsapp:hover {
+  color: #128c7e !important;
+}
+
+/* YENI: Ödəniş linki */
+.nav-link-highlight {
+  background: rgba(99, 102, 241, 0.15);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid rgba(99, 102, 241, 0.3);
+  color: #818cf8 !important;
+}
+
+.nav-link-highlight:hover {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+.nav-link-highlight::after {
+  display: none;
 }
 
 .nav-actions {
@@ -210,17 +253,27 @@ body {
   border-color: rgba(148, 163, 184, 0.3);
 }
 
-.btn-ghost-light {
-  background: rgba(255, 255, 255, 0.12);
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.1);
   color: #ffffff;
-  border: 1.5px solid rgba(255, 255, 255, 0.25);
-  font-weight: 500;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
 }
 
-.btn-ghost-light:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.4);
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* YENI: Whatsapp button */
+.btn-whatsapp {
+  background: var(--whatsapp-gradient);
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(37, 211, 102, 0.4);
+}
+
+.btn-whatsapp:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(37, 211, 102, 0.5);
 }
 
 .btn-large {
@@ -253,6 +306,66 @@ body {
 .btn-outline-white:hover {
   background: rgba(255, 255, 255, 0.1);
   border-color: #ffffff;
+}
+
+/* YENI: Kurs kartı buttonları */
+.btn-course {
+  width: 100%;
+  background: rgba(99, 102, 241, 0.1);
+  color: #ffffff;
+  border: 1.5px solid rgba(99, 102, 241, 0.3);
+  padding: 16px;
+  font-weight: 600;
+  font-size: 1.05rem;
+  transition: all var(--transition-fast);
+  letter-spacing: 0.01em;
+}
+
+.btn-course:hover {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
+}
+
+/* YENI: Bloklu kurs buttonu */
+.btn-course.locked-btn {
+  background: #475569;
+  cursor: pointer;
+  opacity: 0.9;
+}
+
+.btn-course.locked-btn:hover {
+  background: #334155;
+  opacity: 1;
+}
+
+/* YENI: Ödəniş buttonu */
+.btn-payment-quick {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1.5px solid rgba(16, 185, 129, 0.3);
+  padding: 12px;
+  border-radius: var(--radius-md);
+}
+
+.btn-payment-quick:hover {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+/* YENI: Böyük ödəniş buttonu */
+.btn-payment-large {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  padding: 14px 28px;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+}
+
+.btn-payment-large:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
 }
 
 .menu-toggle {
@@ -380,6 +493,25 @@ body {
   margin: 16px 0;
 }
 
+/* YENI: Profile dropdown item */
+.profile-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.profile-dropdown-item:hover {
+  background: rgba(99, 102, 241, 0.1);
+  color: #818cf8;
+}
+
 .logout-btn {
   width: 100%;
   display: flex;
@@ -405,7 +537,190 @@ body {
 }
 
 /* ============================================
-   HERO SECTION - Enhanced readability
+   FRONTEND ALERT MODAL - YENI
+   ============================================ */
+.frontend-alert-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.frontend-alert-modal {
+  background: var(--card-bg);
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  padding: 40px;
+  max-width: 420px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+  animation: slideUp 0.3s ease;
+  position: relative;
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.alert-header {
+  margin-bottom: 24px;
+}
+
+.alert-header .lock-icon {
+  color: var(--warning-color);
+  margin-bottom: 16px;
+  filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.3));
+}
+
+.alert-header h3 {
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.alert-message {
+  color: var(--text-secondary);
+  font-size: 1.05rem;
+  line-height: 1.7;
+  margin-bottom: 28px;
+}
+
+.alert-submessage {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  display: block;
+  margin-top: 8px;
+}
+
+/* Gizli giriş bölməsi */
+.secret-access-section {
+  background: var(--darker-bg);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 24px;
+  border: 1.5px solid var(--border-color);
+}
+
+.secret-label {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 12px;
+  margin-top: 0;
+  font-weight: 600;
+}
+
+.secret-input-wrapper {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.secret-input-wrapper input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  transition: all var(--transition-fast);
+}
+
+.secret-input-wrapper input:focus {
+  border-color: rgba(99, 102, 241, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.secret-input-wrapper input.error {
+  border-color: var(--error-color);
+  animation: shake 0.5s;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+.secret-btn {
+  background: var(--primary-gradient);
+  color: #ffffff;
+  border: none;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.secret-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+}
+
+.secret-error {
+  color: var(--error-color);
+  font-size: 12px;
+  margin-top: 8px;
+  margin-bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.alert-close-btn {
+  background: transparent;
+  border: 1.5px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all var(--transition-fast);
+  letter-spacing: 0.01em;
+}
+
+.alert-close-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+/* ============================================
+   HERO SECTION
    ============================================ */
 .hero {
   position: relative;
@@ -506,7 +821,7 @@ body {
 }
 
 /* ============================================
-   SECTION HEADERS - Enhanced
+   SECTION HEADERS
    ============================================ */
 section {
   padding: 120px var(--container-padding);
@@ -517,10 +832,6 @@ section {
   text-align: center;
   max-width: 800px;
   margin: 0 auto 70px;
-}
-
-.section-header.light {
-  color: #ffffff;
 }
 
 .section-tag {
@@ -557,7 +868,7 @@ section {
 }
 
 /* ============================================
-   COURSES SECTION - Enhanced readability
+   COURSES SECTION
    ============================================ */
 .courses-section {
   background: var(--darker-bg);
@@ -569,6 +880,43 @@ section {
   gap: 40px;
   max-width: var(--container-max);
   margin: 0 auto;
+}
+
+/* YENI: Bloklu kurs kartı */
+.course-card.locked {
+  opacity: 0.85;
+  position: relative;
+}
+
+.course-card.locked::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.03);
+  border-radius: var(--radius-xl);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.locked-badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  color: var(--warning-color);
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1.5px solid rgba(251, 191, 36, 0.3);
+  z-index: 2;
 }
 
 .course-card {
@@ -684,112 +1032,61 @@ section {
   filter: drop-shadow(0 0 4px rgba(52, 211, 153, 0.3));
 }
 
-.btn-course {
-  width: 100%;
-  background: rgba(99, 102, 241, 0.1);
-  color: #ffffff;
-  border: 1.5px solid rgba(99, 102, 241, 0.3);
-  padding: 16px;
-  font-weight: 600;
-  font-size: 1.05rem;
-  transition: all var(--transition-fast);
-  letter-spacing: 0.01em;
+.course-card-actions {
+  display: flex;
+  gap: 12px;
 }
 
-.btn-course:hover {
-  background: rgba(99, 102, 241, 0.2);
-  border-color: rgba(99, 102, 241, 0.5);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
+.course-card-actions .btn-course {
+  flex: 1;
 }
 
 /* ============================================
-   STEPS SECTION - Enhanced
+   QUICK PAYMENT CTA - YENI
    ============================================ */
-.steps-section {
+.quick-payment-cta {
+  padding: 60px var(--container-padding);
   background: linear-gradient(180deg, var(--darker-bg) 0%, var(--dark-bg) 100%);
-  position: relative;
-  overflow: hidden;
 }
 
-.steps-section::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1.5px;
-  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.3), transparent);
-}
-
-.steps-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 28px;
+.quick-payment-box {
   max-width: var(--container-max);
   margin: 0 auto;
-  position: relative;
-}
-
-.step-card {
   background: var(--card-bg);
   border: 1.5px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 36px 28px;
-  text-align: center;
-  position: relative;
-  transition: all var(--transition-normal);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-xl);
+  padding: 32px 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
 }
 
-.step-card:hover {
-  border-color: rgba(99, 102, 241, 0.4);
-  transform: translateY(-6px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+.quick-payment-text {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: 1;
 }
 
-.step-number {
-  font-size: 3rem;
-  font-weight: 900;
-  background: var(--primary-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin-bottom: 20px;
-  opacity: 0.9;
-  letter-spacing: -0.03em;
-  line-height: 1;
-  filter: drop-shadow(0 2px 4px rgba(99, 102, 241, 0.2));
-}
-
-.step-title {
+.quick-payment-text h3 {
+  color: var(--text-primary);
   font-size: 1.35rem;
   font-weight: 700;
-  margin-bottom: 14px;
-  color: #ffffff;
+  margin-bottom: 6px;
   letter-spacing: -0.01em;
 }
 
-.step-desc {
+.quick-payment-text p {
   color: var(--text-secondary);
-  font-size: 1.05rem;
-  line-height: 1.7;
-  font-weight: 400;
-}
-
-.step-arrow {
-  position: absolute;
-  right: -24px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 2.5rem;
-  color: var(--text-muted);
-  opacity: 0.2;
-  font-weight: 300;
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
 }
 
 /* ============================================
-   ABOUT SECTION - Enhanced readability
+   ABOUT SECTION
    ============================================ */
 .about-section {
   background: var(--dark-bg);
@@ -875,7 +1172,7 @@ section {
 }
 
 /* ============================================
-   FEATURES SECTION - Enhanced
+   FEATURES SECTION
    ============================================ */
 .features-section {
   background: var(--darker-bg);
@@ -939,7 +1236,7 @@ section {
 }
 
 /* ============================================
-   FAQ SECTION - Enhanced readability
+   FAQ SECTION
    ============================================ */
 .faq-section {
   background: var(--dark-bg);
@@ -1017,7 +1314,7 @@ section {
 }
 
 /* ============================================
-   CTA SECTION - Enhanced
+   CTA SECTION
    ============================================ */
 .cta-section {
   background: var(--primary-gradient);
@@ -1068,7 +1365,7 @@ section {
 }
 
 /* ============================================
-   FOOTER - Enhanced readability
+   FOOTER
    ============================================ */
 .footer {
   background: var(--darker-bg);
@@ -1131,6 +1428,19 @@ section {
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
 }
 
+/* YENI: Whatsapp social link */
+.social-link.whatsapp {
+  background: rgba(37, 211, 102, 0.1);
+  border-color: rgba(37, 211, 102, 0.3);
+  color: #25d366;
+}
+
+.social-link.whatsapp:hover {
+  background: rgba(37, 211, 102, 0.2);
+  border-color: rgba(37, 211, 102, 0.5);
+  color: #128c7e;
+}
+
 .social-link svg {
   width: 20px;
   height: 20px;
@@ -1166,6 +1476,28 @@ section {
   transform: translateX(4px);
 }
 
+/* YENI: Footer locked link */
+.footer-link-locked {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 10px 0;
+  transition: all var(--transition-fast);
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+
+.footer-link-locked:hover {
+  color: var(--text-secondary);
+}
+
+.footer-link-locked svg {
+  width: 12px;
+  height: 12px;
+}
+
 .footer-bottom {
   max-width: var(--container-max);
   margin: 0 auto;
@@ -1179,11 +1511,11 @@ section {
 }
 
 /* ============================================
-   CHATBOT - Enhanced readability
+   CHATBOT
    ============================================ */
 .chatbot-container {
   position: fixed;
-  bottom: 28px;
+  bottom: 100px;
   right: 28px;
   z-index: 999;
 }
@@ -1228,10 +1560,10 @@ section {
   flex-direction: column;
   backdrop-filter: blur(20px) saturate(180%);
   box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.7);
-  animation: slideUp 0.3s ease;
+  animation: slideUpChat 0.3s ease;
 }
 
-@keyframes slideUp {
+@keyframes slideUpChat {
   from {
     opacity: 0;
     transform: translateY(20px);
@@ -1421,6 +1753,38 @@ section {
 }
 
 /* ============================================
+   FLOATING WHATSAPP BUTTON - YENI
+   ============================================ */
+.floating-whatsapp-btn {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  width: 64px;
+  height: 64px;
+  background: var(--whatsapp-gradient);
+  color: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 30px rgba(37, 211, 102, 0.4);
+  cursor: pointer;
+  z-index: 998;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+}
+
+.floating-whatsapp-btn:hover {
+  transform: scale(1.1) rotate(10deg);
+  box-shadow: 0 12px 40px rgba(37, 211, 102, 0.5);
+}
+
+.floating-whatsapp-btn svg {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+/* ============================================
    RESPONSIVE DESIGN
    ============================================ */
 
@@ -1428,14 +1792,6 @@ section {
 @media (max-width: 1279px) {
   :root {
     --container-padding: 20px;
-  }
-  
-  .steps-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .step-arrow {
-    display: none;
   }
   
   .about-features-grid {
@@ -1507,10 +1863,31 @@ section {
     max-width: 600px;
   }
   
+  .quick-payment-box {
+    flex-direction: column;
+    text-align: center;
+    gap: 24px;
+  }
+  
+  .quick-payment-text {
+    flex-direction: column;
+  }
+  
+  .chatbot-container {
+    bottom: 100px;
+  }
+  
   .chatbot-window {
     width: calc(100vw - 48px);
     max-width: 420px;
     right: 0;
+  }
+  
+  .floating-whatsapp-btn {
+    width: 56px;
+    height: 56px;
+    bottom: 24px;
+    right: 24px;
   }
 }
 
@@ -1540,35 +1917,6 @@ section {
     width: 100%;
   }
   
-  .steps-grid {
-    grid-template-columns: 1fr;
-    max-width: 500px;
-  }
-  
-  .step-card {
-    text-align: left;
-    display: flex;
-    align-items: flex-start;
-    gap: 24px;
-    padding: 28px;
-  }
-  
-  .step-number {
-    margin-bottom: 0;
-    font-size: 2.5rem;
-    flex-shrink: 0;
-    min-width: 60px;
-  }
-  
-  .step-title {
-    margin-bottom: 10px;
-    font-size: 1.25rem;
-  }
-  
-  .step-desc {
-    font-size: 1rem;
-  }
-  
   .about-features-grid {
     grid-template-columns: 1fr;
     max-width: 500px;
@@ -1587,15 +1935,6 @@ section {
     flex-shrink: 0;
     width: 64px;
     height: 64px;
-  }
-  
-  .about-feature-title {
-    margin-bottom: 10px;
-    font-size: 1.2rem;
-  }
-  
-  .about-feature-desc {
-    font-size: 1rem;
   }
   
   .features-grid {
@@ -1618,23 +1957,14 @@ section {
     height: 64px;
   }
   
-  .feature-title {
-    margin-bottom: 10px;
-    font-size: 1.25rem;
-  }
-  
-  .feature-desc {
-    font-size: 1rem;
-  }
-  
   .faq-question {
     font-size: 1.1rem;
     padding: 24px;
   }
   
   .faq-answer.show {
-    padding: 0 24px 24px;
     font-size: 1rem;
+    padding: 0 24px 24px;
   }
   
   .footer-content {
@@ -1656,16 +1986,6 @@ section {
     text-align: left;
   }
   
-  .footer-column h4 {
-    margin-bottom: 20px;
-    font-size: 1.05rem;
-  }
-  
-  .footer-column a {
-    font-size: 0.95rem;
-    padding: 8px 0;
-  }
-  
   .cta-buttons {
     flex-direction: column;
     align-items: stretch;
@@ -1677,22 +1997,18 @@ section {
     width: 100%;
   }
   
-  .chatbot-container {
-    bottom: 20px;
-    right: 20px;
+  .frontend-alert-modal {
+    padding: 32px 24px;
+    margin: 16px;
   }
   
-  .chatbot-toggle {
-    width: 60px;
-    height: 60px;
+  .secret-input-wrapper {
+    flex-direction: column;
   }
   
-  .chatbot-window {
-    width: calc(100vw - 40px);
-    height: 60vh;
-    max-height: 520px;
-    right: 0;
-    bottom: 76px;
+  .secret-btn {
+    width: 100%;
+    height: 44px;
   }
 }
 
@@ -1753,6 +2069,50 @@ section {
     animation: slideUp 0.3s ease;
     padding: 28px;
   }
+  
+  .chatbot-container {
+    bottom: 90px;
+    right: 20px;
+  }
+  
+  .chatbot-toggle {
+    width: 56px;
+    height: 56px;
+  }
+  
+  .chatbot-window {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    border-radius: 0;
+    z-index: 9999;
+  }
+  
+  .chatbot-container.open .chatbot-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    background: rgba(239, 68, 68, 0.9);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+  
+  .floating-whatsapp-btn {
+    width: 52px;
+    height: 52px;
+    bottom: 20px;
+    right: 20px;
+  }
+  
+  .floating-whatsapp-btn svg {
+    width: 24px;
+    height: 24px;
+  }
 }
 
 /* Mobile Extra Small (up to 479px) */
@@ -1768,16 +2128,6 @@ section {
   
   .hero-subtitle {
     font-size: 1.05rem;
-  }
-  
-  .step-card {
-    flex-direction: column;
-    text-align: center;
-  }
-  
-  .step-number {
-    margin-bottom: 16px;
-    font-size: 2.25rem;
   }
   
   .about-feature-card {
@@ -1798,33 +2148,6 @@ section {
     margin: 0 auto;
   }
   
-  .chatbot-window {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    height: 100%;
-    max-height: 100%;
-    border-radius: 0;
-    z-index: 9999;
-  }
-  
-  .chatbot-toggle {
-    width: 56px;
-    height: 56px;
-  }
-  
-  .chatbot-container.open .chatbot-toggle {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 10000;
-    background: rgba(239, 68, 68, 0.9);
-    border-color: rgba(255, 255, 255, 0.3);
-  }
-  
   .faq-question {
     font-size: 1.05rem;
     padding: 20px;
@@ -1833,6 +2156,18 @@ section {
   .faq-answer.show {
     font-size: 0.95rem;
     padding: 0 20px 20px;
+  }
+  
+  .frontend-alert-modal {
+    padding: 24px 20px;
+  }
+  
+  .alert-header h3 {
+    font-size: 1.25rem;
+  }
+  
+  .secret-access-section {
+    padding: 16px;
   }
 }
 
@@ -1876,7 +2211,7 @@ section {
   }
 }
 
-/* Dark Mode Support (already dark by default) */
+/* Dark Mode Support */
 @media (prefers-color-scheme: dark) {
   /* Styles already optimized for dark mode */
 }
@@ -1885,6 +2220,7 @@ section {
 @media print {
   .navbar,
   .chatbot-container,
+  .floating-whatsapp-btn,
   .hero-bg,
   .cta-section,
   .footer {

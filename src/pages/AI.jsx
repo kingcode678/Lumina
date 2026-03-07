@@ -156,15 +156,15 @@ const aiVideoLinks = [
   // Topic 6-20 videos...
   {
     topicId: 6,
-    title: "Fayllarla İş: Oxumaq və Yazmaq Əməliyyatları",
-    duration: "16:55",
-    url: ""
+    title: "Fayllarla İş",
+    duration: "41:57",
+    url: "https://youtu.be/hO7IRvi2nyw?si=nPBtv1w4hj7k3dcw"
   },
   {
     topicId: 7,
     title: "Xətaların İdarə Edilməsi: Try/Except Blokları",
-    duration: "18:30",
-    url: ""
+    duration: "24:28",
+    url: "https://youtu.be/iBYppSXFw0A?si=aAVb159nGgLy7CMj"
   },
   {
     topicId: 8,

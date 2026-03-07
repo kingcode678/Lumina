@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { db } from '../firebase';
 import { 
   doc, 
@@ -6,458 +6,757 @@ import {
   setDoc, 
   deleteDoc,
   serverTimestamp, 
-  onSnapshot
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  orderBy,
+  limit
 } from 'firebase/firestore';
 import { 
   Brain, AlertCircle, CheckCircle2, XCircle, Loader2, 
-  RefreshCw, Target, Zap, ChevronDown, ChevUp,
+  RefreshCw, Target, Zap, ChevronDown, ChevronUp,
   Terminal, Bug, BookOpen, FileQuestion, Code2, 
   TrendingUp, Award, Lightbulb, ArrowRight, BarChart3,
   Trash2, RotateCcw, GraduationCap, Clock, AlertTriangle,
-  CheckSquare, LayoutList, ChevronUp
+  CheckSquare, LayoutList, PlayCircle, Lock, Unlock, 
+  Star, TrendingDown, BrainCircuit, BookMarked, HelpCircle, 
+  FileCode, Sparkles, BarChart2, Calendar, Clock3, Activity, 
+  Layers, ArrowUpRight, PieChart, Hash, Cpu, Save, X, FileText
 } from 'lucide-react';
 
 // ============================================
-// API KEY - BİRBAŞA KODDA
+// API KEY - BIRBAŞA KODDA
 // ============================================
 const GROQ_API_KEY = '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';
 
-// TOKEN LIMITLƏRI
-const MAX_INPUT_TOKENS = 3500;
-const MAX_OUTPUT_TOKENS = 1500;
-
 // ============================================
-// HOOK
+// KONFiQURASIYA - LIMITLER
 // ============================================
-export const useAIMentor = () => {
-  const saveQuizAttempt = async (userId, courseId, topicId, questionIndex, userAnswer, isCorrect, questionData) => {
-    if (!userId || !courseId) return;
-    
-    try {
-      const sessionRef = doc(db, 'users', userId, 'sessions', courseId);
-      const docSnap = await getDoc(sessionRef);
-      const existing = docSnap.exists() ? docSnap.data().quizAttempts || [] : [];
-      
-      await setDoc(sessionRef, {
-        quizAttempts: [...existing, {
-          topicId,
-          questionIndex,
-          question: questionData?.question || '',
-          options: questionData?.options || [],
-          correctAnswer: questionData?.correctAnswer,
-          userAnswer,
-          isCorrect,
-          timestamp: new Date().toISOString()
-        }],
-        lastUpdated: serverTimestamp()
-      }, { merge: true });
-    } catch (err) {
-      console.error('Quiz save error:', err);
-    }
-  };
-
-  const saveCodeAttempt = async (userId, courseId, topicId, code, output, error, isSuccess, exerciseData) => {
-    if (!userId || !courseId) return;
-    
-    try {
-      const sessionRef = doc(db, 'users', userId, 'sessions', courseId);
-      const docSnap = await getDoc(sessionRef);
-      const existing = docSnap.exists() ? docSnap.data().codeAttempts || [] : [];
-      
-      let errorCategory = null;
-      let errorLine = null;
-      
-      if (error) {
-        const errStr = error.toString().toLowerCase();
-        if (errStr.includes('syntax')) errorCategory = 'SyntaxError';
-        else if (errStr.includes('indent')) errorCategory = 'IndentationError';
-        else if (errStr.includes('name') && errStr.includes('not defined')) errorCategory = 'NameError';
-        else if (errStr.includes('type')) errorCategory = 'TypeError';
-        else if (errStr.includes('index')) errorCategory = 'IndexError';
-        else if (errStr.includes('key')) errorCategory = 'KeyError';
-        else if (errStr.includes('import') || errStr.includes('module')) errorCategory = 'ImportError';
-        else if (errStr.includes('attribute')) errorCategory = 'AttributeError';
-        else errorCategory = 'RuntimeError';
-        
-        const lineMatch = errStr.match(/line (\d+)/);
-        if (lineMatch) errorLine = parseInt(lineMatch[1]);
-      }
-      
-      await setDoc(sessionRef, {
-        codeAttempts: [...existing, {
-          topicId,
-          exerciseTitle: exerciseData?.title || '',
-          requirements: exerciseData?.requirements || [],
-          code: code?.substring(0, 2000) || '',
-          output: output?.substring(0, 1000) || '',
-          error: error ? error.toString().substring(0, 1000) : null,
-          errorCategory,
-          errorLine,
-          isSuccess,
-          timestamp: new Date().toISOString()
-        }],
-        lastUpdated: serverTimestamp()
-      }, { merge: true });
-    } catch (err) {
-      console.error('Code save error:', err);
-    }
-  };
-
-  return { saveQuizAttempt, saveCodeAttempt };
+const CONFIG = {
+  MAX_INPUT_TOKENS: 3000,
+  MAX_OUTPUT_TOKENS: 1500,
+  MIN_ATTEMPTS_FOR_ANALYSIS: 2,
+  CONFIDENCE_THRESHOLD: 0.7,
+  RETRY_ATTEMPTS: 3,
+  API_ENDPOINT: 'https://api.groq.com/openai/v1/chat/completions'
 };
 
 // ============================================
-// KOMPONENT
+// SƏViYYƏLƏR
 // ============================================
-const AIAnalysis = ({ user, courseId, currentTopic, topics, isActivated, currentMonth }) => {
-  const [sessionData, setSessionData] = useState({
-    quizAttempts: [],
-    codeAttempts: [],
-    totalAttempts: 0
-  });
+const LEVELS = {
+  BEGINNER: { 
+    label: 'Başlanğıc', 
+    color: '#ef4444', 
+    bg: '#fef2f2',
+    description: 'Əsas konseptləri öyrənmə mərhələsində',
+    icon: '🌱',
+    minScore: 0,
+    maxScore: 39
+  },
+  ELEMENTARY: { 
+    label: 'Elementar', 
+    color: '#f97316', 
+    bg: '#fff7ed',
+    description: 'Əsas anlayışları qavrayır amma praktikada çətinlik çəkir',
+    icon: '🌿',
+    minScore: 40,
+    maxScore: 54
+  },
+  INTERMEDIATE: { 
+    label: 'Orta', 
+    color: '#f59e0b', 
+    bg: '#fffbeb',
+    description: 'Mövzuları anlayır, orta səviyyədə tətbiq edir',
+    icon: '🌳',
+    minScore: 55,
+    maxScore: 69
+  },
+  UPPER_INTERMEDIATE: { 
+    label: 'Yuxarı Orta', 
+    color: '#84cc16', 
+    bg: '#f7fee7',
+    description: 'Yaxşı mənimsəmiş, mürəkkəb tapşırıqlarda çətinlik çəkir',
+    icon: '🌲',
+    minScore: 70,
+    maxScore: 79
+  },
+  ADVANCED: { 
+    label: 'İrəli', 
+    color: '#10b981', 
+    bg: '#f0fdf4',
+    description: 'Mövzuları tam mənimsəmiş, mürəkkəb problemləri həll edir',
+    icon: '🚀',
+    minScore: 80,
+    maxScore: 89
+  },
+  EXPERT: { 
+    label: 'Ekspert', 
+    color: '#06b6d4', 
+    bg: '#ecfeff',
+    description: 'Konseptləri dərindən bilir və innovativ həllər yaradır',
+    icon: '👑',
+    minScore: 90,
+    maxScore: 100
+  }
+};
 
-  const [aiAnalysis, setAiAnalysis] = useState({
-    summary: '',
-    detailedAnalysis: [],
-    overallLevel: '',
-    weakTopics: [],
-    strongTopics: [],
-    errorPatterns: [],
-    recommendations: [],
-    nextSteps: '',
-    loading: false,
-    error: null,
-    lastUpdated: null,
-    hasAnalysis: false,
-    progressStats: null
-  });
+const getLevelByScore = (score) => {
+  if (score >= 90) return LEVELS.EXPERT;
+  if (score >= 80) return LEVELS.ADVANCED;
+  if (score >= 70) return LEVELS.UPPER_INTERMEDIATE;
+  if (score >= 55) return LEVELS.INTERMEDIATE;
+  if (score >= 40) return LEVELS.ELEMENTARY;
+  return LEVELS.BEGINNER;
+};
 
-  const [activeSection, setActiveSection] = useState('overview');
-  const [selectedDetail, setSelectedDetail] = useState(null);
-  const [tokenInfo, setTokenInfo] = useState({ input: 0, output: 0 });
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
+// ============================================
+// ERROR PATTERN DATABASE - Python üçün
+// ============================================
+const ERROR_PATTERNS = {
+  SyntaxError: {
+    patterns: ['invalid syntax', 'unexpected EOF', 'EOL while scanning', 'unexpected character', 'invalid character', 'SyntaxError'],
+    causes: [
+      'Dırnaq işarələrini bağlamaq unudulub',
+      'Mötərizələr balanslı deyil',
+      'İndentasiya səhvləri',
+      'Sətir sonunda artıq nöqtə-vergül',
+      'Kod sətri tamamlanmadan yeni sətirə keçilib'
+    ],
+    fix: 'Kodun strukturunu yoxlayın: bütün açan mötərizələr bağlanıb? Dırnaqlar cütləşib? İndentasiya düzgündür?',
+    learningTip: 'Python blok strukturunu (indentation) yaxşı mənimsəyin. Hər blok 4 boşluq ilə başlamalıdır.',
+    resources: ['https://docs.python.org/3/tutorial/errors.html']
+  },
   
-  const unsubscribeRef = useRef(null);
+  IndentationError: {
+    patterns: ['unexpected indent', 'expected an indented block', 'unindent does not match', 'inconsistent use of tabs'],
+    causes: [
+      'Funksiyadan sonra indentasiya unudulub',
+      'Boşluq və Tab qarışığı',
+      'Şərt bloklarından sonra indentasiya yoxdur',
+      'Loop və ya funksiya daxilində kod yazılmayıb'
+    ],
+    fix: 'Bütün kod blokları eyni səviyyədə boşluqdan başlamalıdır. 4 boşluq standartdır.',
+    learningTip: 'VS Code-da "Editor: Insert Spaces" ayarını aktiv edin və "Tab Size" 4 olaraq təyin edin.',
+    resources: ['https://www.python.org/dev/peps/pep-0008/#indentation']
+  },
+  
+  NameError: {
+    patterns: ['name .* is not defined', 'undefined variable', 'NameError'],
+    causes: [
+      'Dəyişən adı səhv yazılıb (case-sensitive)',
+      'Dəyişən funksiyadan əvvəl çağırılıb',
+      'Lazımi modul import edilməyib',
+      'Scope səhv - lokal dəyişən qlobalda istifadə edilir'
+    ],
+    fix: 'Dəyişən adını yoxlayın. Əvvəlcə təyin olunduğuna əmin olun. Lazımsa "import modul_adı" əlavə edin.',
+    learningTip: 'Python-da dəyişənlər istifadə edilmədən əvvəl təyin olunmalıdır.',
+    resources: ['https://docs.python.org/3/tutorial/classes.html#python-scopes-and-namespaces']
+  },
+  
+  TypeError: {
+    patterns: ['unsupported operand type', 'can only concatenate', 'takes .* arguments', 'missing .* argument', 'not callable', 'object is not subscriptable'],
+    causes: [
+      'Fərqli tipləri toplamaq (məs: "5" + 3)',
+      'Funksiyaya səhv arqument tipi göndərmək',
+      'NoneType üzərində əməliyyat',
+      'List əvəzinə string göndərmək',
+      'Funksiya olmayan şeyi çağırmaq'
+    ],
+    fix: 'Dəyişənlərin tiplərini yoxlayın: print(type(deyisen)). Uyğun tipləri əməliyyat edin və ya tip çevirmə istifadə edin.',
+    learningTip: 'Python dinamik tipli dildir amma sərt tiplidir. isinstance() funksiyası ilə tip yoxlaması aparın.',
+    resources: ['https://docs.python.org/3/library/functions.html#type']
+  },
+  
+  IndexError: {
+    patterns: ['list index out of range', 'string index out of range', 'tuple index out of range'],
+    causes: [
+      'Boş listə indeks ilə müraciət',
+      'Mövcud olmayan indeks',
+      'Loop-da sərhəd xətası',
+      'Son elementə çatmaq üçün səhv indeks'
+    ],
+    fix: 'Listin uzunluğunu yoxlayın: len(list). İndeks 0-dan başlayır. Negative indekslər (-1 son element) istifadə edin.',
+    learningTip: 'Python-da indeksləmə 0-dan başlayır. List boşdursa, heç bir indeks işləməz.',
+    resources: ['https://docs.python.org/3/tutorial/datastructures.html']
+  },
+  
+  KeyError: {
+    patterns: ['KeyError', 'key not found'],
+    causes: [
+      'Lüğətdə olmayan açar ilə müraciət',
+      'Səhv açar adı yazmaq (case-sensitive)',
+      'Dictionary-də olmayan elementi silməyə çalışmaq'
+    ],
+    fix: 'dict.get("key", default) istifadə edin və ya "key" in dict ilə yoxlayın.',
+    learningTip: 'Dictionary-lərdə .get() metodu KeyError atmadan default dəyər qaytara bilər.',
+    resources: ['https://docs.python.org/3/library/stdtypes.html#dict.get']
+  },
+  
+  AttributeError: {
+    patterns: ['object has no attribute', 'NoneType object has no attribute', 'AttributeError'],
+    causes: [
+      'Olmayan metod və ya atribut çağırmaq',
+      'None üzərində metod çağırmaq',
+      'Modul düzgün import edilməyib',
+      'String metodu listdə çağırmaq'
+    ],
+    fix: 'Obyektin tipini yoxlayın: type(obj). Lazımi metodlar üçün dir(obj) istifadə edin. None yoxlaması əlavə edin.',
+    learningTip: 'Hər tipin öz metodları var. String metodları listdə işləmir.',
+    resources: ['https://docs.python.org/3/library/functions.html#dir']
+  },
+  
+  ValueError: {
+    patterns: ['invalid literal for int', 'could not convert string', 'too many values to unpack', 'not enough values to unpack'],
+    causes: [
+      'Boş və ya yanlış formatlı stringi ədədə çevirmək',
+      'Unpacking-də element sayı uyğunsuzluğu',
+      'Səhv tarix formatı',
+      'input() ilə alınan məlumatı düzgün çevirməmək'
+    ],
+    fix: 'Dəyərin formatını yoxlayın. Tip çevirmədən əvvəl validate edin: if value.isdigit().',
+    learningTip: 'İstifadəçi daxilindən gələn məlumatları həmişə yoxlayın. try-except ValueError ilə tutun.',
+    resources: ['https://docs.python.org/3/tutorial/errors.html']
+  },
+  
+  ZeroDivisionError: {
+    patterns: ['division by zero', 'float division by zero', 'integer division or modulo by zero'],
+    causes: [
+      'Sıfıra bölmə',
+      'Boş listin ortalaması',
+      'Dəyişən sıfır olub, sonra bölmə əməliyyatı'
+    ],
+    fix: 'Bölmədən əvvəl məxrəci yoxlayın: if b != 0:. Sıfır olduqda xüsusi handling əlavə edin.',
+    learningTip: 'Həmişə bölən sıfır ola biləcəyini nəzərə alın. Statistik hesablamalarda boş dataset yoxlaması vacibdir.',
+    resources: ['https://docs.python.org/3/library/exceptions.html#ZeroDivisionError']
+  },
+  
+  ImportError: {
+    patterns: ['No module named', 'cannot import name', 'ModuleNotFoundError'],
+    causes: [
+      'Modul install edilməyib',
+      'Modul adı səhv yazılıb',
+      'Dairəvi import (circular import)',
+      'Virtual environment aktiv deyil',
+      'Fayl adı modul adı ilə eynidir'
+    ],
+    fix: 'pip install modul_adı ilə quraşdırın. Modul adını yoxlayın. Virtual environment yoxlayın.',
+    learningTip: 'Python ekosistemində minlərlə modul var. requirements.txt faylı ilə asılılıqları idarə edin.',
+    resources: ['https://pip.pypa.io/en/stable/user_guide/']
+  },
+  
+  FileNotFoundError: {
+    patterns: ['No such file or directory', 'FileNotFoundError'],
+    causes: [
+      'Fayl mövcud deyil',
+      'Relativ yol səhv',
+      'Fayl başqa qovluqda yerləşir',
+      'Fayl adında typo',
+      'Case-sensitive fayl sistemi'
+    ],
+    fix: 'Fayl yolunu yoxlayın: os.path.exists("fayl.txt"). Tam yol istifadə edin və ya os.path.join() ilə qovluq birləşdirin.',
+    learningTip: 'Fayl ilə işləyərkən həmişə yoxlama aparın. try-except FileNotFoundError ilə tutun.',
+    resources: ['https://docs.python.org/3/tutorial/inputoutput.html']
+  }
+};
 
-  // Firestore listener
+// ============================================
+// YARDIMCI FUNKSIYALAR
+// ============================================
+
+// Son cəhdləri əldə et (yalnız son nəticələr)
+const getLastAttempts = (attempts, topicId, type) => {
+  if (!attempts || !Array.isArray(attempts)) return [];
+  
+  // Mövzu və tip üzrə filter et
+  const filtered = attempts.filter(a => 
+    a.topicId === topicId && 
+    a.type === type
+  );
+  
+  // Tarixə görə sırala (ən yenisi əvvəl)
+  const sorted = filtered.sort((a, b) => 
+    new Date(b.timestamp) - new Date(a.timestamp)
+  );
+  
+  // Son 5 cəhd (son nəticələr üçün kifayətdir)
+  return sorted.slice(0, 5);
+};
+
+// Xəta kateqoriyasını müəyyən et
+const categorizeError = (error) => {
+  if (!error) return { category: 'Unknown', type: 'unknown' };
+  
+  const errorLower = error.toLowerCase();
+  
+  for (const [category, data] of Object.entries(ERROR_PATTERNS)) {
+    if (data.patterns.some(pattern => 
+      new RegExp(pattern, 'i').test(errorLower)
+    )) {
+      let type = 'other';
+      if (['SyntaxError', 'IndentationError'].includes(category)) type = 'syntax';
+      else if (['TypeError', 'ValueError', 'NameError'].includes(category)) type = 'logic';
+      else if (['RuntimeError', 'ZeroDivisionError', 'IndexError', 'KeyError'].includes(category)) type = 'runtime';
+      
+      return { category, type };
+    }
+  }
+  
+  return { category: 'Unknown', type: 'unknown' };
+};
+
+// Mastery skoru hesabla (yalnız son cəhdlər əsasında)
+const calculateMasteryScore = (quizAttempts, codeAttempts) => {
+  // Quiz nəticələri (40% çəki)
+  const quizWeight = 0.4;
+  const codeWeight = 0.6;
+  
+  let quizScore = 0;
+  if (quizAttempts.length > 0) {
+    const correct = quizAttempts.filter(a => a.isCorrect).length;
+    quizScore = (correct / quizAttempts.length) * 100;
+  }
+  
+  // Kod nəticələri (60% çəki)
+  let codeScore = 0;
+  if (codeAttempts.length > 0) {
+    const successful = codeAttempts.filter(a => a.isSuccess).length;
+    codeScore = (successful / codeAttempts.length) * 100;
+  }
+  
+  // Əgər hər iki tip varsa, çəkili orta
+  if (quizAttempts.length > 0 && codeAttempts.length > 0) {
+    return Math.round((quizScore * quizWeight) + (codeScore * codeWeight));
+  }
+  // Yalnız quiz varsa
+  else if (quizAttempts.length > 0) {
+    return Math.round(quizScore);
+  }
+  // Yalnız kod varsa
+  else if (codeAttempts.length > 0) {
+    return Math.round(codeScore);
+  }
+  
+  return 0;
+};
+
+// Mövzu analizi et
+const analyzeTopic = (topicId, topicTitle, quizAttempts, codeAttempts) => {
+  // Yalnız son cəhdləri al
+  const lastQuiz = getLastAttempts(quizAttempts, topicId, 'quiz');
+  const lastCode = getLastAttempts(codeAttempts, topicId, 'code');
+  
+  if (lastQuiz.length === 0 && lastCode.length === 0) {
+    return null;
+  }
+  
+  const score = calculateMasteryScore(lastQuiz, lastCode);
+  const level = getLevelByScore(score);
+  
+  // Quiz analizi
+  const quizCorrect = lastQuiz.filter(a => a.isCorrect).length;
+  const quizAccuracy = lastQuiz.length > 0 ? Math.round((quizCorrect / lastQuiz.length) * 100) : 0;
+  
+  // Kod analizi
+  const codeSuccess = lastCode.filter(a => a.isSuccess).length;
+  const codeSuccessRate = lastCode.length > 0 ? Math.round((codeSuccess / lastCode.length) * 100) : 0;
+  
+  // Xəta analizi
+  const errors = [];
+  lastCode.filter(a => !a.isSuccess && a.error).forEach(a => {
+    const errInfo = categorizeError(a.error);
+    errors.push({
+      ...errInfo,
+      error: a.error,
+      code: a.code,
+      timestamp: a.timestamp,
+      exerciseTitle: a.exerciseTitle
+    });
+  });
+  
+  // Xəta qruplaşdırması
+  const errorGroups = errors.reduce((acc, err) => {
+    if (!acc[err.category]) acc[err.category] = [];
+    acc[err.category].push(err);
+    return acc;
+  }, {});
+  
+  const commonErrors = Object.entries(errorGroups)
+    .map(([category, items]) => ({
+      category,
+      count: items.length,
+      percentage: Math.round((items.length / (lastCode.length || 1)) * 100),
+      examples: items.slice(0, 2),
+      explanation: ERROR_PATTERNS[category] || null
+    }))
+    .sort((a, b) => b.count - a.count);
+  
+  // Zəif konseptlər (quizdə səhv cavablananlar)
+  const wrongAnswers = lastQuiz.filter(a => !a.isCorrect);
+  const weakConcepts = [...new Set(wrongAnswers.map(a => a.concept || 'Ümumi'))].slice(0, 3);
+  
+  // Trend (son 2 cəhdin müqayisəsi)
+  let trend = 'neutral';
+  if (lastQuiz.length >= 2 || lastCode.length >= 2) {
+    const recent = [...lastQuiz, ...lastCode].slice(0, 3);
+    const older = [...lastQuiz, ...lastCode].slice(3, 6);
+    
+    if (recent.length > 0 && older.length > 0) {
+      const recentSuccess = recent.filter(a => a.isCorrect || a.isSuccess).length / recent.length;
+      const olderSuccess = older.filter(a => a.isCorrect || a.isSuccess).length / older.length;
+      
+      if (recentSuccess > olderSuccess + 0.1) trend = 'up';
+      else if (recentSuccess < olderSuccess - 0.1) trend = 'down';
+    }
+  }
+  
+  // Tövsiyələr
+  const recommendations = [];
+  if (score < 50) {
+    recommendations.push({
+      type: 'critical',
+      icon: '📚',
+      title: 'Nəzəriyyəni təkrarlayın',
+      description: 'Bu mövzuda əsas çətinliklər var. Dərsi yenidən oxuyun və video materiallara baxın.'
+    });
+  }
+  if (quizAccuracy < 60 && lastQuiz.length > 0) {
+    recommendations.push({
+      type: 'warning',
+      icon: '📝',
+      title: 'Quiz suallarını təkrarlayın',
+      description: 'Quiz nəticələri aşağıdır. Səhv cavabladığınız sualların izahlarını öyrənin.'
+    });
+  }
+  if (codeSuccessRate < 50 && lastCode.length > 0) {
+    recommendations.push({
+      type: 'critical',
+      icon: '💻',
+      title: 'Praktikaya vaxt ayırın',
+      description: 'Kod tapşırıqlarında çətinlik çəkirsiniz. Sadə nümunələrlə başlayın.'
+    });
+  }
+  if (commonErrors.length > 0) {
+    const topError = commonErrors[0];
+    recommendations.push({
+      type: 'error',
+      icon: '🐛',
+      title: `${topError.category} xətalarına diqqət edin`,
+      description: ERROR_PATTERNS[topError.category]?.learningTip || 'Xəta səbəblərini öyrənin.'
+    });
+  }
+  if (weakConcepts.length > 0) {
+    recommendations.push({
+      type: 'focus',
+      icon: '🎯',
+      title: `"${weakConcepts[0]}" konseptini öyrənin`,
+      description: 'Bu konseptdə çətinlik çəkirsiniz. Əlavə mənbələrdən istifadə edin.'
+    });
+  }
+  if (recommendations.length === 0) {
+    recommendations.push({
+      type: 'success',
+      icon: '🚀',
+      title: 'Mövzunu dərinləşdirin',
+      description: 'Yaxşı nəticə! İndi daha mürəkkəb tapşırıqlar üzərində çalışın.'
+    });
+  }
+  
+  return {
+    topicId,
+    title: topicTitle,
+    score,
+    level,
+    quizAccuracy,
+    codeSuccessRate,
+    quizAttempts: lastQuiz,
+    codeAttempts: lastCode,
+    commonErrors: commonErrors.slice(0, 3),
+    weakConcepts,
+    recommendations: recommendations.slice(0, 4),
+    trend,
+    totalAttempts: lastQuiz.length + lastCode.length,
+    lastActivity: lastQuiz[0]?.timestamp || lastCode[0]?.timestamp || null
+  };
+};
+
+// AI Prompt generator - LIMITLI (3000 token)
+const generateCompactPrompt = (userId, analyses, currentMonth) => {
+  let prompt = `SƏN PEŞƏKAR PYTHON MÜƏLLİMİSƏN. TƏLƏBƏNİN SON NƏTİCƏLƏRİNƏ GÖRƏ QISA VƏ KONKRET TƏHLİL APAR.
+
+TƏLƏBƏ: ${userId.slice(0, 8)}...
+AY: ${currentMonth}
+TARİX: ${new Date().toLocaleDateString('az-AZ')}
+
+=== MÖVZU BAZLI SON NƏTİCƏLƏR ===\n`;
+
+  analyses.forEach((a, idx) => {
+    prompt += `
+${idx + 1}. ${a.title} (ID:${a.topicId})
+   Bal: ${a.score}/100 | Səviyyə: ${a.level.label}
+   Quiz: ${a.quizAccuracy}% | Kod: ${a.codeSuccessRate}%
+   Trend: ${a.trend === 'up' ? '↑' : a.trend === 'down' ? '↓' : '→'}
+   ${a.weakConcepts.length > 0 ? `Zəif: ${a.weakConcepts.join(', ')}` : ''}
+   ${a.commonErrors.length > 0 ? `Xətalar: ${a.commonErrors.map(e => e.category).join(', ')}` : ''}
+`;
+  });
+
+  const avgScore = Math.round(analyses.reduce((sum, a) => sum + a.score, 0) / analyses.length);
+  const strongest = analyses.reduce((max, a) => a.score > max.score ? a : max, analyses[0]);
+  const weakest = analyses.reduce((min, a) => a.score < min.score ? a : min, analyses[0]);
+
+  prompt += `
+=== ÜMUMI STATISTIKA ===
+Orta bal: ${avgScore}/100
+Ən güclü: ${strongest.title} (${strongest.score})
+Ən zəif: ${weakest.title} (${weakest.score})
+Ümumi trend: ${analyses.filter(a => a.trend === 'up').length > analyses.filter(a => a.trend === 'down').length ? 'Yüksəlir' : 'Stabil'}
+
+=== TƏLƏBLƏR (MAKSIMUM 1500 TOKEN) ===
+1. Hər mövzu üçün 2-3 cümləlik KONKRET təhlil:
+   - Nəyi səhv edir? (konseptual/praktiki)
+   - Necə düzəltməli? (addım-addım)
+
+2. Ümumi 4 həftəlik plan:
+   Həftə 1: [Konkret mövzu]
+   Həftə 2: [Konkret mövzu]
+   Həftə 3: [Konkret mövzu]
+   Həftə 4: [Konkret mövzu]
+
+3. 3 müsbət və 3 mənfi cəhət (bullet points)
+
+4. 1 motivasiya cümləsi
+
+Cavab Azərbaycanca, sadə və aydın olsun. Texniki terminləri izah et.`;
+
+  // Token limitini yoxla (təxmini: 1 token ≈ 4 char)
+  if (prompt.length > CONFIG.MAX_INPUT_TOKENS * 4) {
+    // Çox uzundursa, qısalt
+    return prompt.substring(0, CONFIG.MAX_INPUT_TOKENS * 4);
+  }
+  
+  return prompt;
+};
+
+// AI cavabını parse et
+const parseAIResponse = (text) => {
+  const result = {
+    topicAnalyses: [],
+    weeklyPlan: [],
+    positives: [],
+    negatives: [],
+    motivation: '',
+    raw: text
+  };
+
+  // Həftəlik plan
+  const weekMatches = text.match(/Həftə\s*\d+[:\.]\s*([^\n]+)/gi);
+  if (weekMatches) {
+    result.weeklyPlan = weekMatches.map(w => w.replace(/Həftə\s*\d+[:\.]\s*/i, '').trim());
+  }
+
+  // Müsbət cəhətlər
+  const positiveSection = text.match(/[✅✓]\s*([^\n]+)/g);
+  if (positiveSection) {
+    result.positives = positiveSection.map(p => p.replace(/[✅✓]\s*/, '').trim()).slice(0, 5);
+  }
+
+  // Mənfi cəhətlər  
+  const negativeSection = text.match(/[⚠️❌✗]\s*([^\n]+)/g);
+  if (negativeSection) {
+    result.negatives = negativeSection.map(n => n.replace(/[⚠️❌✗]\s*/, '').trim()).slice(0, 5);
+  }
+
+  // Motivasiya (son 200 char və ya xüsusi işarələr)
+  const motivationMatch = text.match(/(?:💪|🎉|Motivasiya|TƏŞƏKKÜR)[:\s]*([^\n]+)/i);
+  if (motivationMatch) {
+    result.motivation = motivationMatch[1].trim();
+  } else {
+    // Son cümləni götür
+    const sentences = text.split(/[.!?]/).filter(s => s.trim().length > 20);
+    result.motivation = sentences[sentences.length - 1]?.trim() || 'Uğurlar!';
+  }
+
+  return result;
+};
+
+// ============================================
+// HOOK - CƏHDLƏRI IDARƏ ETMEK
+// ============================================
+export const useAIMentor = () => {
+  // Quiz cəhdini yadda saxla
+  const saveQuizAttempt = useCallback(async (userId, courseId, topicId, attemptData) => {
+    try {
+      const attempt = {
+        type: 'quiz',
+        topicId: parseInt(topicId),
+        questionIndex: attemptData.questionIndex,
+        userAnswer: attemptData.userAnswer,
+        isCorrect: attemptData.isCorrect,
+        question: attemptData.question?.substring(0, 200), // Limitlə
+        options: attemptData.options,
+        correctAnswer: attemptData.correctAnswer,
+        concept: attemptData.concept || attemptData.question?.split(' ').slice(0, 3).join(' '),
+        timestamp: new Date().toISOString()
+      };
+
+      // Firestore-a yaz
+      const attemptsRef = collection(db, 'users', userId, 'courses', courseId, 'attempts');
+      await addDoc(attemptsRef, attempt);
+      
+      // Son nəticələri cache-lə (lokal state üçün)
+      return attempt;
+    } catch (error) {
+      console.error('Quiz attempt error:', error);
+      throw error;
+    }
+  }, []);
+
+  // Kod cəhdini yadda saxla
+  const saveCodeAttempt = useCallback(async (userId, courseId, topicId, attemptData) => {
+    try {
+      const { category, type } = categorizeError(attemptData.error);
+      
+      const attempt = {
+        type: 'code',
+        topicId: parseInt(topicId),
+        code: attemptData.code?.substring(0, 1000), // Limitlə
+        output: attemptData.output?.substring(0, 500),
+        error: attemptData.error?.substring(0, 500),
+        errorCategory: category,
+        errorType: type,
+        isSuccess: attemptData.isSuccess,
+        exerciseTitle: attemptData.exerciseTitle,
+        requirements: attemptData.requirements,
+        timestamp: new Date().toISOString()
+      };
+
+      const attemptsRef = collection(db, 'users', userId, 'courses', courseId, 'attempts');
+      await addDoc(attemptsRef, attempt);
+      
+      return attempt;
+    } catch (error) {
+      console.error('Code attempt error:', error);
+      throw error;
+    }
+  }, []);
+
+  // Cəhdləri yüklə (yalnız son nəticələr)
+  const loadAttempts = useCallback(async (userId, courseId, topicId = null) => {
+    try {
+      let q = query(
+        collection(db, 'users', userId, 'courses', courseId, 'attempts'),
+        orderBy('timestamp', 'desc'),
+        limit(100) // Son 100 cəhd kifayətdir
+      );
+      
+      if (topicId) {
+        q = query(q, where('topicId', '==', parseInt(topicId)));
+      }
+
+      const snapshot = await getDocs(q);
+      const attempts = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      return {
+        quizAttempts: attempts.filter(a => a.type === 'quiz'),
+        codeAttempts: attempts.filter(a => a.type === 'code')
+      };
+    } catch (error) {
+      console.error('Load attempts error:', error);
+      return { quizAttempts: [], codeAttempts: [] };
+    }
+  }, []);
+
+  return { saveQuizAttempt, saveCodeAttempt, loadAttempts };
+};
+
+// ============================================
+// ANA KOMPONENT
+// ============================================
+const AIAnalysis = ({ user, courseId, topics, currentMonth = 1 }) => {
+  const [loading, setLoading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [error, setError] = useState(null);
+  const [attempts, setAttempts] = useState({ quizAttempts: [], codeAttempts: [] });
+  const [analysis, setAnalysis] = useState(null);
+  const [viewMode, setViewMode] = useState('overview'); // overview, topics, report
+  const [selectedTopic, setSelectedTopic] = useState(null);
+  const [showResetModal, setShowResetModal] = useState(false);
+
+  // Hook-u komponent səviyyəsində çağır
+  const { loadAttempts } = useAIMentor();
+
+  // Cəhdləri yüklə
   useEffect(() => {
     if (!user || !courseId) return;
-
-    const sessionRef = doc(db, 'users', user.uid, 'sessions', courseId);
     
-    unsubscribeRef.current = onSnapshot(sessionRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        const quizAttempts = data.quizAttempts || [];
-        const codeAttempts = data.codeAttempts || [];
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const data = await loadAttempts(user.uid, courseId);
+        setAttempts(data);
         
-        setSessionData({
-          quizAttempts,
-          codeAttempts,
-          totalAttempts: quizAttempts.length + codeAttempts.length
-        });
+        // Saxlanmış analizi yüklə
+        const analysisDoc = await getDoc(doc(db, 'users', user.uid, 'courses', courseId, 'analysis', 'latest'));
+        if (analysisDoc.exists()) {
+          setAnalysis(analysisDoc.data());
+        }
+      } catch (err) {
+        console.error('Data load error:', err);
+      } finally {
+        setLoading(false);
       }
-    });
+    };
+    
+    fetchData();
+  }, [user, courseId, loadAttempts]);
 
-    loadLastAnalysis();
-    return () => unsubscribeRef.current?.();
-  }, [user, courseId]);
+  // Mövzu analizlərini hesabla (yalnız son nəticələr)
+  const topicAnalyses = useMemo(() => {
+    return topics
+      .map((topic, idx) => analyzeTopic(idx + 1, topic.title, attempts.quizAttempts, attempts.codeAttempts))
+      .filter(Boolean); // null olanları at
+  }, [attempts, topics]);
 
-  const loadLastAnalysis = async () => {
-    if (!user || !courseId) return;
-    try {
-      const analysisRef = doc(db, 'users', user.uid, 'aiAnalysis', courseId);
-      const analysisSnap = await getDoc(analysisRef);
-      
-      if (analysisSnap.exists()) {
-        const data = analysisSnap.data();
-        setAiAnalysis(prev => ({
-          ...prev,
-          ...data,
-          lastUpdated: data.generatedAt?.toDate() || null,
-          hasAnalysis: true
-        }));
-        setTokenInfo(data.tokenInfo || { input: 0, output: 0 });
-      }
-    } catch (err) {
-      console.error('Son analiz yüklənmədi:', err);
-    }
-  };
-
-  // ============================================
-  // ANALIZI SIFIRLA
-  // ============================================
-  const resetAnalysis = async () => {
-    if (!user || !courseId) return;
+  // Ümumi statistika
+  const overallStats = useMemo(() => {
+    if (topicAnalyses.length === 0) return null;
     
-    try {
-      // Firestore-dan analizi sil
-      const analysisRef = doc(db, 'users', user.uid, 'aiAnalysis', courseId);
-      await deleteDoc(analysisRef);
-      
-      // State-i sıfırla
-      setAiAnalysis({
-        summary: '',
-        detailedAnalysis: [],
-        overallLevel: '',
-        weakTopics: [],
-        strongTopics: [],
-        errorPatterns: [],
-        recommendations: [],
-        nextSteps: '',
-        loading: false,
-        error: null,
-        lastUpdated: null,
-        hasAnalysis: false,
-        progressStats: null
-      });
-      
-      setTokenInfo({ input: 0, output: 0 });
-      setShowResetConfirm(false);
-      
-    } catch (err) {
-      console.error('Analiz sıfırlanmadı:', err);
-      alert('Analiz sıfırlanarkən xəta baş verdi');
-    }
-  };
-
-  // ============================================
-  // PROGRESS HESABLAMA
-  // ============================================
-  const calculateProgress = useCallback(() => {
-    const { quizAttempts, codeAttempts } = sessionData;
-    
-    // Hər mövzu üzrə məlumatları yığ
-    const topicStats = {};
-    
-    // Bütün mövzular üçün boş struktur yarat (keçilməyənlər də daxil)
-    topics.forEach((topic, idx) => {
-      topicStats[idx + 1] = {
-        topicId: idx + 1,
-        title: topic.title,
-        quizAttempts: [],
-        codeAttempts: [],
-        hasActivity: false
-      };
-    });
-    
-    // Quiz məlumatlarını əlavə et
-    quizAttempts.forEach(q => {
-      if (topicStats[q.topicId]) {
-        topicStats[q.topicId].quizAttempts.push(q);
-        topicStats[q.topicId].hasActivity = true;
-      }
-    });
-    
-    // Kod məlumatlarını əlavə et
-    codeAttempts.forEach(c => {
-      if (topicStats[c.topicId]) {
-        topicStats[c.topicId].codeAttempts.push(c);
-        topicStats[c.topicId].hasActivity = true;
-      }
-    });
-    
-    // Aktiv mövzuları say (heç olmasa 1 cəhdi olanlar)
-    const activeTopics = Object.values(topicStats).filter(t => t.hasActivity);
-    const totalTopics = topics.length;
-    const completedTopics = activeTopics.length;
+    const scores = topicAnalyses.map(t => t.score);
+    const avgScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    const completedTopics = topicAnalyses.filter(t => t.score > 0).length;
     
     return {
-      totalTopics,
+      averageScore: avgScore,
       completedTopics,
-      percentComplete: Math.round((completedTopics / totalTopics) * 100),
-      topicStats
+      totalTopics: topics.length,
+      completionRate: Math.round((completedTopics / topics.length) * 100),
+      strongest: topicAnalyses.reduce((max, t) => t.score > max.score ? t : max, topicAnalyses[0]),
+      weakest: topicAnalyses.reduce((min, t) => t.score < min.score ? t : min, topicAnalyses[0]),
+      overallLevel: getLevelByScore(avgScore),
+      trend: topicAnalyses.filter(t => t.trend === 'up').length > topicAnalyses.filter(t => t.trend === 'down').length ? 'up' : 'neutral'
     };
-  }, [sessionData, topics]);
+  }, [topicAnalyses, topics.length]);
 
-  // ============================================
-  // DETALLI PROMPT - HER MOVZU UCUN AYRI
-  // ============================================
-  const buildDetailedPrompt = useCallback(() => {
-    const { quizAttempts, codeAttempts } = sessionData;
-    const progress = calculateProgress();
-    
-    let prompt = `PYTHON AI KURSU - FƏRDİ TƏHLIL\n`;
-    prompt += `=====================================\n\n`;
-    
-    // İRƏLİLƏYİŞ MƏLUMATI (Əsas göstərici)
-    prompt += `📊 ÜMUMI İRƏLİLƏYİŞ: ${progress.completedTopics}/${progress.totalTopics} mövzu (${progress.percentComplete}%)\n`;
-    prompt += `Tələbə kursun ${progress.percentComplete}%-ni tamamlayıb.\n\n`;
-    
-    // HƏR MÖVZU ÜZRƏ DETALLI TƏHLIL
-    prompt += `🔍 MÖVZU BAZLI DETALLI TƏHLIL:\n`;
-    prompt += `================================\n\n`;
-    
-    Object.values(progress.topicStats).forEach(topic => {
-      const topicQuiz = topic.quizAttempts;
-      const topicCode = topic.codeAttempts;
-      
-      // Mövzu başlığı
-      prompt += `\n📚 MÖVZU ${topic.topicId}: ${topic.title.toUpperCase()}\n`;
-      prompt += `${'='.repeat(40)}\n`;
-      
-      if (!topic.hasActivity) {
-        prompt += `⏳ Bu mövzuya aid heç bir fəaliyyət yoxdur (keçilməyib).\n`;
-        return;
-      }
-      
-      // Quiz nəticələri
-      if (topicQuiz.length > 0) {
-        const correctCount = topicQuiz.filter(q => q.isCorrect).length;
-        const accuracy = Math.round((correctCount / topicQuiz.length) * 100);
-        
-        prompt += `\n📝 Quiz Nəticələri:\n`;
-        prompt += `   • Ümumi sual: ${topicQuiz.length}\n`;
-        prompt += `   • Düzgün cavab: ${correctCount}\n`;
-        prompt += `   • Uğur faizi: ${accuracy}%\n`;
-        
-        // Səhv cavablar detallı
-        const wrongAnswers = topicQuiz.filter(q => !q.isCorrect);
-        if (wrongAnswers.length > 0) {
-          prompt += `\n   ❌ SƏHV CAVABLAR (Diqqət yetirilməli):\n`;
-          wrongAnswers.forEach((q, idx) => {
-            prompt += `      ${idx + 1}. Sual: ${q.question?.substring(0, 80)}...\n`;
-            prompt += `         Səhv cavab: ${q.userAnswer || 'Boş'}\n`;
-            prompt += `         Düzgün cavab: ${q.options?.[q.correctAnswer] || 'Bilinmir'}\n`;
-          });
-        }
-        
-        // Səviyyə qiymətləndirməsi
-        let level = 'Başlanğıc';
-        if (accuracy >= 90) level = 'Tam Mənimsəmiş';
-        else if (accuracy >= 60) level = 'Orta';
-        
-        prompt += `\n   🎯 Mövzu Səviyyəsi: ${level}\n`;
-      } else {
-        prompt += `\n📝 Quiz: Keçirilməyib\n`;
-      }
-      
-      // Kod tapşırıqları
-      if (topicCode.length > 0) {
-        const successCount = topicCode.filter(c => c.isSuccess).length;
-        const successRate = Math.round((successCount / topicCode.length) * 100);
-        
-        prompt += `\n💻 Kod Tapşırıqları:\n`;
-        prompt += `   • Ümumi cəhd: ${topicCode.length}\n`;
-        prompt += `   • Uğurlu: ${successCount}\n`;
-        prompt += `   • Uğur faizi: ${successRate}%\n`;
-        
-        // Xəta detalları
-        const errors = topicCode.filter(c => !c.isSuccess && c.error);
-        if (errors.length > 0) {
-          prompt += `\n   🐞 YAYGIN XƏTALAR:\n`;
-          const errorTypes = {};
-          errors.forEach(e => {
-            const type = e.errorCategory || 'Digər';
-            errorTypes[type] = (errorTypes[type] || 0) + 1;
-          });
-          
-          Object.entries(errorTypes).forEach(([type, count]) => {
-            prompt += `      • ${type}: ${count} dəfə\n`;
-          });
-          
-          // Son xəta nümunəsi
-          const lastError = errors[errors.length - 1];
-          prompt += `\n   📋 Son Xəta Nümunəsi:\n`;
-          prompt += `      Tip: ${lastError.errorCategory}\n`;
-          prompt += `      Mesaj: ${lastError.error?.substring(0, 150)}\n`;
-        }
-        
-        // Kod səviyyəsi
-        let codeLevel = 'Başlanğıc';
-        if (successRate >= 80) codeLevel = 'Tam Mənimsəmiş';
-        else if (successRate >= 50) codeLevel = 'Orta';
-        
-        prompt += `\n   🎯 Kod Səviyyəsi: ${codeLevel}\n`;
-      } else {
-        prompt += `\n💻 Kod tapşırığı: Keçirilməyib\n`;
-      }
-    });
-    
-    // ÜMUMI KURS TƏHLILI
-    prompt += `\n\n📈 ÜMUMI KURS TƏHLILI:\n`;
-    prompt += `======================\n`;
-    
-    const totalQuiz = quizAttempts.length;
-    const correctQuiz = quizAttempts.filter(q => q.isCorrect).length;
-    const totalCode = codeAttempts.length;
-    const successCode = codeAttempts.filter(c => c.isSuccess).length;
-    
-    const quizRate = totalQuiz > 0 ? Math.round((correctQuiz / totalQuiz) * 100) : 0;
-    const codeRate = totalCode > 0 ? Math.round((successCode / totalCode) * 100) : 0;
-    
-    prompt += `• Ümumi Quiz Uğuru: ${correctQuiz}/${totalQuiz} (${quizRate}%)\n`;
-    prompt += `• Ümumi Kod Uğuru: ${successCode}/${totalCode} (${codeRate}%)\n`;
-    
-    // Ümumi səviyyə
-    let overallLevel = 'Başlanğıc';
-    const avgRate = (quizRate + codeRate) / 2;
-    if (progress.percentComplete >= 80 && avgRate >= 85) overallLevel = 'İrəli';
-    else if (progress.percentComplete >= 50 && avgRate >= 60) overallLevel = 'Orta';
-    
-    prompt += `• Ümumi Səviyyə: ${overallLevel}\n`;
-    
-    // ZƏIF MÖVZULAR (Tövsiyə üçün)
-    prompt += `\n⚠️  DİQQƏT YETIRILMƏLI MÖVZULAR:\n`;
-    Object.values(progress.topicStats).forEach(topic => {
-      if (!topic.hasActivity) return;
-      
-      const topicQuiz = topic.quizAttempts;
-      const topicCode = topic.codeAttempts;
-      
-      const quizAccuracy = topicQuiz.length > 0 
-        ? (topicQuiz.filter(q => q.isCorrect).length / topicQuiz.length) * 100 
-        : 100;
-      const codeSuccess = topicCode.length > 0
-        ? (topicCode.filter(c => c.isSuccess).length / topicCode.length) * 100
-        : 100;
-      
-      if (quizAccuracy < 60 || codeSuccess < 50) {
-        prompt += `• ${topic.title} (Quiz: ${Math.round(quizAccuracy)}%, Kod: ${Math.round(codeSuccess)}%)\n`;
-      }
-    });
-    
-    // TƏLƏBLƏR (Sıfırdan başlayanlar üçün)
-    prompt += `\n\n🎯 TƏHLIL TƏLƏBLƏRI (Sıfırdan Başlayanlar Üçün):\n`;
-    prompt += `1. Hər mövzu üçün ayrı-ayrılıqda səviyyə təyin et: Başlanğıc / Orta / Tam Mənimsəmiş\n`;
-    prompt += `2. Ümumi kurs üzrə səviyyə təyin et (keçilən mövzular nəzərə alınaraq)\n`;
-    prompt += `3. Səhv cavabların SƏBƏBİNİ izah et (niyə səhv olub, konsept nədir)\n`;
-    prompt += `4. Kod xətalarını sadə dildə izah et (səhv etdiyi nöqtəni göstər)\n`;
-    prompt += `5. Zəif mövzuları siyahıla və hər biri üçün KONKRET tövsiyə ver\n`;
-    prompt += `6. Sıfırdan başlayan birinə uyğun: sadə, aydın, təşviqedici dil istifadə et\n`;
-    prompt += `7. Növbəti addımları prioritizə et (hansı mövzunu təkrar etməli, nəyə fokuslanmalı)\n`;
-    
-    // Token limiti yoxla
-    const estimatedTokens = prompt.length / 4;
-    if (estimatedTokens > MAX_INPUT_TOKENS) {
-      return prompt.substring(0, MAX_INPUT_TOKENS * 4) + '\n...[məlumat qısaldıldı]';
-    }
-    
-    setTokenInfo(prev => ({ ...prev, input: Math.round(estimatedTokens) }));
-    return prompt;
-  }, [sessionData, topics, calculateProgress]);
-
-  // ============================================
-  // AI ANALYSIS
-  // ============================================
-  const generateAnalysis = useCallback(async () => {
-    const prompt = buildDetailedPrompt();
-    const progress = calculateProgress();
-    
-    if (!prompt || sessionData.totalAttempts === 0) {
-      setAiAnalysis(prev => ({ 
-        ...prev, 
-        error: 'Analiz üçün kifayət qədər məlumat yoxdur. Əvvəlcə quiz və kod tapşırıqlarını tamamlayın.' 
-      }));
+  // AI Analizi apar
+  const generateAIAnalysis = async () => {
+    if (topicAnalyses.length === 0) {
+      setError('Analiz üçün kifayət qədər məlumat yoxdur. Əvvəlcə quiz və kod tapşırıqlarını tamamlayın.');
       return;
     }
 
-    setAiAnalysis(prev => ({ ...prev, loading: true, error: null }));
+    setAnalyzing(true);
+    setError(null);
 
     try {
-      console.log('🚀 API sorğusu:', { inputTokens: tokenInfo.input });
+      const prompt = generateCompactPrompt(user.uid, topicAnalyses, currentMonth);
       
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions ', {
+      const response = await fetch(CONFIG.API_ENDPOINT, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${GROQ_API_KEY}`,
@@ -468,747 +767,476 @@ const AIAnalysis = ({ user, courseId, currentTopic, topics, isActivated, current
           messages: [
             {
               role: 'system',
-              content: `Sən peşəkar Python müəllimisən. Tələbənin hər mövzunu ayrı-ayrılıqda və ümumi kursu təhlil et. 
-              Sıfırdan başlayanlar üçün sadə, aydın dil istifadə et. 
-              Hər səhv üçün: 1) Nəyi bilmədiyini, 2) Necə düzəltməli olduğunu izah et.
-              Təhlili strukturlu və oxunaqlı apar. Azərbaycanca cavab ver.`
+              content: 'Sən peşəkar Python müəllimisən. Qısa, konkret və faydalı təhlil apar. Hər mövzu üçün maksimum 3 cümlə yaz. Ümumi hesabat 500 sözdən çox olmasın.'
             },
             { role: 'user', content: prompt }
           ],
-          temperature: 0.5,
-          max_tokens: MAX_OUTPUT_TOKENS
+          temperature: 0.4,
+          max_tokens: CONFIG.MAX_OUTPUT_TOKENS,
+          top_p: 0.9
         })
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('API xətası:', response.status, errorText);
         throw new Error(`API xətası: ${response.status}`);
       }
 
       const result = await response.json();
-      const aiResponse = result.choices[0].message.content;
-      
-      const outputTokens = aiResponse.length / 4;
-      setTokenInfo({ input: tokenInfo.input, output: Math.round(outputTokens) });
-      
-      console.log('✅ AI cavabı alındı:', aiResponse.substring(0, 200));
-      
-      const parsed = parseDetailedResponse(aiResponse, progress);
-      
-      setAiAnalysis({
-        ...parsed,
-        loading: false,
-        error: null,
-        lastUpdated: new Date(),
-        hasAnalysis: true,
-        progressStats: progress
-      });
+      const aiText = result.choices[0].message.content;
+      const parsed = parseAIResponse(aiText);
 
-      await saveAnalysis(parsed, progress);
-      
-    } catch (error) {
-      console.error('AI Analysis error:', error);
-      setAiAnalysis(prev => ({
-        ...prev,
-        loading: false,
-        error: error.message || 'Xəta baş verdi'
-      }));
-    }
-  }, [sessionData, buildDetailedPrompt, tokenInfo, calculateProgress]);
+      const newAnalysis = {
+        aiInsights: parsed,
+        generatedAt: new Date().toISOString(),
+        topicAnalyses: topicAnalyses,
+        overallStats: overallStats,
+        model: 'llama-3.3-70b-versatile',
+        inputTokens: Math.round(prompt.length / 4),
+        outputTokens: Math.round(aiText.length / 4)
+      };
 
-  const parseDetailedResponse = (response, progress) => {
-    const lines = response.split('\n').filter(l => l.trim());
-    
-    const analysis = {
-      summary: '',
-      detailedAnalysis: [],
-      overallLevel: '',
-      weakTopics: [],
-      strongTopics: [],
-      errorPatterns: [],
-      recommendations: [],
-      nextSteps: '',
-      progressContext: `${progress.completedTopics}/${progress.totalTopics} mövzu`
-    };
+      // Firestore-a saxla
+      await setDoc(
+        doc(db, 'users', user.uid, 'courses', courseId, 'analysis', 'latest'),
+        newAnalysis
+      );
 
-    let currentSection = '';
-    let currentTopic = null;
-    let buffer = [];
-
-    lines.forEach(line => {
-      const lower = line.toLowerCase().trim();
-      
-      // Ümumi qiymət
-      if (lower.match(/ümumi səviyyə|ümumi qiymət|kurs səviyyəsi/)) {
-        currentSection = 'summary';
-        const match = line.match(/(başlanğıc|orta|irəli|tam mənimsəmiş|advanced)/i);
-        if (match) analysis.overallLevel = match[1];
-        if (!analysis.summary) analysis.summary = line.replace(/^[-•*#]\s*/, '');
-      }
-      // Mövzu analizi
-      else if (line.match(/^📚|mövzu \d+:|^\[?mövzu \d+/i)) {
-        if (currentTopic) analysis.detailedAnalysis.push(currentTopic);
-        
-        const titleMatch = line.match(/[:]\s*(.+)/);
-        currentTopic = {
-          title: titleMatch ? titleMatch[1].replace(/[📚🎯]/g, '').trim() : line.replace(/[📚\-*\[\]]/g, '').trim(),
-          level: 'Başlanğıc',
-          quizAnalysis: [],
-          codeAnalysis: [],
-          suggestions: [],
-          weakPoints: []
-        };
-        currentSection = 'topic';
-      }
-      // Mövzu səviyyəsi
-      else if (lower.match(/səviyyə.*:/)) {
-        const levelMatch = line.match(/(başlanğıc|orta|tam mənimsəmiş|irəli)/i);
-        if (levelMatch && currentTopic) {
-          currentTopic.level = levelMatch[1];
-        }
-      }
-      // Güclü tərəflər
-      else if (lower.match(/güclü|strength|üstün|yaxşı/)) {
-        currentSection = 'strong';
-      }
-      // Zəif tərəflər
-      else if (lower.match(/zəif|weak|inkişaf|problem|diqqət|səhv/)) {
-        currentSection = 'weak';
-      }
-      // Xəta patternləri
-      else if (lower.match(/xəta|error|pattern/)) {
-        currentSection = 'errors';
-      }
-      // Tövsiyələr
-      else if (lower.match(/tövsiyə|recommendation|məsləhət|nə etməli/)) {
-        currentSection = 'rec';
-      }
-      // Növbəti addımlar
-      else if (lower.match(/növbəti|next|addım|plan|davam/)) {
-        currentSection = 'next';
-        if (line.length > 10) analysis.nextSteps += line + ' ';
-      }
-      // Məzmun
-      else if (line.match(/^[-•*\d]\.?\s/) || line.match(/^[📝💻🐞⚠️]\s/)) {
-        const content = line.replace(/^[-•*\d📝💻🐞⚠️]\.?\s*/, '').trim();
-        if (!content) return;
-        
-        switch(currentSection) {
-          case 'topic':
-            if (currentTopic) {
-              if (lower.includes('quiz') || lower.includes('sual') || lower.includes('cavab')) {
-                currentTopic.quizAnalysis.push(content);
-              } else if (lower.includes('kod') || lower.includes('xəta')) {
-                currentTopic.codeAnalysis.push(content);
-              } else if (lower.includes('səhv') || lower.includes('problem')) {
-                currentTopic.weakPoints.push(content);
-              } else {
-                currentTopic.suggestions.push(content);
-              }
-            }
-            break;
-          case 'strong':
-            analysis.strongTopics.push(content);
-            break;
-          case 'weak':
-            analysis.weakTopics.push(content);
-            break;
-          case 'errors':
-            analysis.errorPatterns.push(content);
-            break;
-          case 'rec':
-            analysis.recommendations.push(content);
-            break;
-          case 'next':
-            analysis.nextSteps += content + ' ';
-            break;
-          default:
-            if (!analysis.summary) analysis.summary = content;
-        }
-      }
-    });
-
-    if (currentTopic) analysis.detailedAnalysis.push(currentTopic);
-    if (!analysis.summary) analysis.summary = `Kursun ${progress.percentComplete}%-si tamamlanıb. Ümumi səviyyə: ${analysis.overallLevel || 'Qiymətləndirilir'}`;
-    if (!analysis.nextSteps) analysis.nextSteps = 'Zəif mövzuları təkrarlayın və praktik edin';
-
-    return analysis;
-  };
-
-  const saveAnalysis = async (parsed, progress) => {
-    try {
-      const analysisRef = doc(db, 'users', user.uid, 'aiAnalysis', courseId);
-      await setDoc(analysisRef, {
-        ...parsed,
-        tokenInfo,
-        progressStats: progress,
-        generatedAt: serverTimestamp(),
-        stats: {
-          totalQuiz: sessionData.quizAttempts.length,
-          totalCode: sessionData.codeAttempts.length
-        }
-      }, { merge: true });
+      setAnalysis(newAnalysis);
     } catch (err) {
-      console.error('Analiz saxlama xətası:', err);
+      console.error('AI Analysis error:', err);
+      setError('Təhlil apararkən xəta baş verdi. Yenidən cəhd edin.');
+    } finally {
+      setAnalyzing(false);
     }
   };
 
-  // ============================================
-  // RENDER FUNKSİYALARI
-  // ============================================
-  const renderProgressBar = () => {
-    const progress = aiAnalysis.progressStats || calculateProgress();
+  // Analizi sıfırla
+  const resetAnalysis = async () => {
+    if (!user || !courseId) return;
+    try {
+      await deleteDoc(doc(db, 'users', user.uid, 'courses', courseId, 'analysis', 'latest'));
+      setAnalysis(null);
+      setShowResetModal(false);
+    } catch (err) {
+      console.error('Reset error:', err);
+    }
+  };
+
+  // Render funksiyaları
+  const renderHeader = () => (
+    <div className="ai-header">
+      <div className="header-brand">
+        <div className="brand-icon">
+          <BrainCircuit size={32} />
+        </div>
+        <div className="brand-text">
+          <h1>🤖 AI Mentor</h1>
+          <p>Fərdi Təlim və Təhlil Sistemi</p>
+        </div>
+      </div>
+      
+      <div className="header-actions">
+        {analysis && (
+          <button className="btn-secondary" onClick={() => setShowResetModal(true)}>
+            <RotateCcw size={18} />
+            <span>Sıfırla</span>
+          </button>
+        )}
+        
+        <button 
+          className="btn-primary"
+          onClick={generateAIAnalysis}
+          disabled={analyzing || topicAnalyses.length === 0}
+        >
+          {analyzing ? (
+            <>
+              <Loader2 className="spin" size={20} />
+              <span>Təhlil edilir...</span>
+            </>
+          ) : (
+            <>
+              <Sparkles size={20} />
+              <span>{analysis ? 'Yenilə' : 'AI Təhlil Et'}</span>
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderOverview = () => {
+    if (!overallStats) return renderEmptyState();
     
     return (
-      <div className="progress-section">
-        <div className="progress-header">
-          <div className="progress-title">
-            <GraduationCap size={24} />
-            <div>
-              <h3>Kurs İrəliləyişi</h3>
-              <p className="progress-subtitle">
-                {progress.completedTopics} mövzu tamamlandı, {progress.totalTopics - progress.completedTopics} qaldı
-              </p>
+      <div className="overview-section">
+        <div className="stats-grid">
+          <div className="stat-card main">
+            <div className="stat-header">
+              <GraduationCap size={24} />
+              <h3>Ümumi İrəliləyiş</h3>
+            </div>
+            <div className="stat-body">
+              <div className="big-score" style={{ color: overallStats.overallLevel.color }}>
+                {overallStats.overallLevel.icon} {overallStats.averageScore}%
+              </div>
+              <div className="level-badge" style={{ background: overallStats.overallLevel.bg, color: overallStats.overallLevel.color }}>
+                {overallStats.overallLevel.label}
+              </div>
+              <div className="progress-bar">
+                <div className="progress-fill" style={{ width: `${overallStats.completionRate}%` }} />
+              </div>
+              <p className="stat-desc">{overallStats.completedTopics} / {overallStats.totalTopics} mövzu tamamlanıb</p>
             </div>
           </div>
-          <span className="progress-percent">{progress.percentComplete}%</span>
+
+          <div className="stat-card">
+            <div className="stat-header">
+              <TrendingUp size={24} />
+              <h3>Ən Güclü Mövzu</h3>
+            </div>
+            <div className="stat-body">
+              <div className="topic-name">{overallStats.strongest.title}</div>
+              <div className="topic-score" style={{ color: overallStats.strongest.level.color }}>
+                {overallStats.strongest.score}%
+              </div>
+              <p className="stat-desc">{overallStats.strongest.level.label}</p>
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-header">
+              <AlertTriangle size={24} />
+              <h3>Diqqət Tələb Olunur</h3>
+            </div>
+            <div className="stat-body">
+              <div className="topic-name">{overallStats.weakest.title}</div>
+              <div className="topic-score" style={{ color: overallStats.weakest.level.color }}>
+                {overallStats.weakest.score}%
+              </div>
+              <p className="stat-desc">{overallStats.weakest.level.label}</p>
+            </div>
+          </div>
         </div>
-        
-        <div className="progress-track">
+
+        {analysis?.aiInsights && (
+          <div className="ai-summary">
+            <h3><Sparkles size={20} /> AI Tövsiyələri</h3>
+            <div className="insights-grid">
+              {analysis.aiInsights.positives.length > 0 && (
+                <div className="insight-card positive">
+                  <h4>✅ Müsbət Cəhətlər</h4>
+                  <ul>
+                    {analysis.aiInsights.positives.map((p, i) => <li key={i}>{p}</li>)}
+                  </ul>
+                </div>
+              )}
+              {analysis.aiInsights.negatives.length > 0 && (
+                <div className="insight-card negative">
+                  <h4>⚠️ İnkişaf Etməli</h4>
+                  <ul>
+                    {analysis.aiInsights.negatives.map((n, i) => <li key={i}>{n}</li>)}
+                  </ul>
+                </div>
+              )}
+              {analysis.aiInsights.weeklyPlan.length > 0 && (
+                <div className="insight-card plan">
+                  <h4>📅 4 Həftəlik Plan</h4>
+                  <ul>
+                    {analysis.aiInsights.weeklyPlan.map((w, i) => (
+                      <li key={i}><strong>Həftə {i+1}:</strong> {w}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            {analysis.aiInsights.motivation && (
+              <div className="motivation-box">
+                <Sparkles size={20} />
+                <p>{analysis.aiInsights.motivation}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderTopics = () => (
+    <div className="topics-section">
+      <div className="topics-list">
+        {topicAnalyses.map(topic => (
           <div 
-            className="progress-fill-main" 
-            style={{ width: `${progress.percentComplete}%` }}
+            key={topic.topicId} 
+            className={`topic-card ${selectedTopic === topic.topicId ? 'expanded' : ''}`}
+            style={{ borderLeftColor: topic.level.color }}
+          >
+            <div 
+              className="topic-header"
+              onClick={() => setSelectedTopic(selectedTopic === topic.topicId ? null : topic.topicId)}
+            >
+              <div className="topic-info">
+                <span className="topic-number" style={{ background: topic.level.color }}>
+                  {topic.topicId}
+                </span>
+                <div>
+                  <h4>{topic.title}</h4>
+                  <div className="topic-badges">
+                    <span className="badge" style={{ background: topic.level.bg, color: topic.level.color }}>
+                      {topic.level.icon} {topic.level.label}
+                    </span>
+                    <span className="badge score">{topic.score}%</span>
+                    {topic.commonErrors.length > 0 && (
+                      <span className="badge error"><Bug size={12} /> {topic.commonErrors.length}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="topic-stats">
+                <span className="mini-stat"><FileQuestion size={14} /> {topic.quizAccuracy}%</span>
+                <span className="mini-stat"><Terminal size={14} /> {topic.codeSuccessRate}%</span>
+                <span className={`trend-icon ${topic.trend}`}>
+                  {topic.trend === 'up' ? <TrendingUp size={16} /> : 
+                   topic.trend === 'down' ? <TrendingDown size={16} /> : 
+                   <Activity size={16} />}
+                </span>
+                {selectedTopic === topic.topicId ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              </div>
+            </div>
+
+            {selectedTopic === topic.topicId && (
+              <div className="topic-details">
+                {/* Tövsiyələr */}
+                {topic.recommendations.length > 0 && (
+                  <div className="detail-section">
+                    <h5><Lightbulb size={16} /> Tövsiyələr</h5>
+                    <div className="recommendations">
+                      {topic.recommendations.map((rec, idx) => (
+                        <div key={idx} className={`rec-item ${rec.type}`}>
+                          <span className="rec-icon">{rec.icon}</span>
+                          <div>
+                            <strong>{rec.title}</strong>
+                            <p>{rec.description}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Xəta təhlili */}
+                {topic.commonErrors.length > 0 && (
+                  <div className="detail-section">
+                    <h5><Bug size={16} /> Səhv Təhlili</h5>
+                    {topic.commonErrors.map((err, idx) => (
+                      <div key={idx} className="error-card">
+                        <div className="error-header">
+                          <span className="error-cat">{err.category}</span>
+                          <span className="error-count">{err.count} dəfə</span>
+                        </div>
+                        {err.explanation && (
+                          <div className="error-help">
+                            <p><strong>🎯 Səbəb:</strong> {err.explanation.causes[0]}</p>
+                            <p><strong>✅ Həll:</strong> {err.explanation.fix}</p>
+                            <p className="tip"><strong>💡 Məsləhət:</strong> {err.explanation.learningTip}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Son fəaliyyət */}
+                <div className="detail-section">
+                  <h5><Clock3 size={16} /> Son Fəaliyyət</h5>
+                  <div className="activity-list">
+                    {topic.quizAttempts.slice(0, 2).map((q, i) => (
+                      <div key={`q-${i}`} className={`activity-item ${q.isCorrect ? 'success' : 'error'}`}>
+                        <span>{q.isCorrect ? '✅' : '❌'} Quiz: {q.question?.substring(0, 50)}...</span>
+                      </div>
+                    ))}
+                    {topic.codeAttempts.slice(0, 2).map((c, i) => (
+                      <div key={`c-${i}`} className={`activity-item ${c.isSuccess ? 'success' : 'error'}`}>
+                        <span>{c.isSuccess ? '✅' : '❌'} Kod: {c.exerciseTitle}</span>
+                        {!c.isSuccess && c.errorCategory && (
+                          <small>{c.errorCategory}</small>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderReport = () => {
+    if (!analysis) return (
+      <div className="empty-report">
+        <p>AI hesabatı hələ generasiya edilməyib.</p>
+        <button className="btn-primary" onClick={generateAIAnalysis}>
+          <Sparkles size={18} /> Təhlil Et
+        </button>
+      </div>
+    );
+
+    return (
+      <div className="report-section">
+        <div className="report-header">
+          <Calendar size={24} />
+          <h2>Ay {currentMonth} - AI Hesabatı</h2>
+          <span className="report-date">
+            {new Date(analysis.generatedAt).toLocaleDateString('az-AZ')}
+          </span>
+        </div>
+
+        <div className="report-content">
+          <div className="report-stats">
+            <div className="r-stat">
+              <span className="r-label">Orta Bal</span>
+              <span className="r-value" style={{ color: overallStats?.overallLevel.color }}>
+                {overallStats?.averageScore}%
+              </span>
+            </div>
+            <div className="r-stat">
+              <span className="r-label">Mövzu Sayı</span>
+              <span className="r-value">{topicAnalyses.length}</span>
+            </div>
+            <div className="r-stat">
+              <span className="r-label">Token İstifadəsi</span>
+              <span className="r-value">{analysis.inputTokens} → {analysis.outputTokens}</span>
+            </div>
+          </div>
+
+          {analysis.aiInsights?.raw && (
+            <div className="raw-analysis">
+              <h4>📝 Detallı Təhlil</h4>
+              <div className="raw-content">
+                {analysis.aiInsights.raw.split('\n').map((line, i) => (
+                  <p key={i} className={line.startsWith('**') ? 'bold' : ''}>
+                    {line}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderEmptyState = () => (
+    <div className="empty-state">
+      <Brain size={64} className="empty-icon" />
+      <h2>Hələ kifayət qədər məlumat yoxdur</h2>
+      <p>AI Mentor fərdi təhlil üçün minimum {CONFIG.MIN_ATTEMPTS_FOR_ANALYSIS} tapşırıq gözləyir.</p>
+      <div className="progress-mini">
+        <div className="progress-bar-mini">
+          <div 
+            className="progress-fill-mini" 
+            style={{ width: `${Math.min((topicAnalyses.length / CONFIG.MIN_ATTEMPTS_FOR_ANALYSIS) * 100, 100)}%` }}
           />
         </div>
-        
-        <div className="progress-stats">
-          <div className="progress-stat">
-            <CheckSquare size={16} />
-            <span>{sessionData.quizAttempts.length} Quiz</span>
-          </div>
-          <div className="progress-stat">
-            <Terminal size={16} />
-            <span>{sessionData.codeAttempts.length} Kod</span>
-          </div>
-          <div className="progress-stat">
-            <Clock size={16} />
-            <span>Son yeniləmə: {aiAnalysis.lastUpdated ? new Date(aiAnalysis.lastUpdated).toLocaleDateString('az-AZ') : '-'}</span>
-          </div>
-        </div>
+        <span>{topicAnalyses.length} / {CONFIG.MIN_ATTEMPTS_FOR_ANALYSIS} mövzu</span>
       </div>
-    );
-  };
+      <div className="next-steps">
+        <p>🎯 Başlamaq üçün:</p>
+        <ul>
+          <li>Mövzuları təkrarlayın və quizləri cavablandırın</li>
+          <li>Kod tapşırıqlarını yerinə yetirin</li>
+          <li>Səhv etdiklərinizi düzəldin</li>
+        </ul>
+      </div>
+    </div>
+  );
 
-  const renderTopicAnalysis = () => {
-    if (!aiAnalysis.detailedAnalysis || aiAnalysis.detailedAnalysis.length === 0) return null;
-    
+  if (loading) {
     return (
-      <div className="topic-analysis-section">
-        <h3 className="section-main-title">
-          <LayoutList size={24} />
-          Hər Mövzu Üzrə Təhlil
-        </h3>
-        
-        <div className="topics-grid">
-          {aiAnalysis.detailedAnalysis.map((topic, idx) => (
-            <div key={idx} className={`topic-card level-${topic.level?.toLowerCase().replace(/\s/g, '-')}`}>
-              <div className="topic-card-header">
-                <div className="topic-number">#{idx + 1}</div>
-                <div className="topic-info">
-                  <h4>{topic.title}</h4>
-                  <span className={`level-tag ${topic.level?.toLowerCase().replace(/\s/g, '-')}`}>
-                    {topic.level || 'Qiymətləndirilməyib'}
-                  </span>
-                </div>
-              </div>
-              
-              {topic.weakPoints?.length > 0 && (
-                <div className="topic-weaknesses">
-                  <h5><AlertTriangle size={14} /> Diqqət Yetirilməli</h5>
-                  <ul>
-                    {topic.weakPoints.map((point, i) => (
-                      <li key={i}>{point}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              
-              {topic.suggestions?.length > 0 && (
-                <div className="topic-suggestions">
-                  <h5><Lightbulb size={14} /> Tövsiyə</h5>
-                  <ul>
-                    {topic.suggestions.map((sugg, i) => (
-                      <li key={i}>{sugg}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              
-              {(topic.quizAnalysis?.length > 0 || topic.codeAnalysis?.length > 0) && (
-                <div className="topic-details-toggle">
-                  <button onClick={() => setSelectedDetail(selectedDetail === `analysis-${idx}` ? null : `analysis-${idx}`)}>
-                    {selectedDetail === `analysis-${idx}` ? 'Gizlət' : 'Detalları Göstər'}
-                    {selectedDetail === `analysis-${idx}` ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                  </button>
-                </div>
-              )}
-              
-              {selectedDetail === `analysis-${idx}` && (
-                <div className="topic-detailed-content">
-                  {topic.quizAnalysis?.length > 0 && (
-                    <div className="detail-subsection">
-                      <h6>📝 Quiz Təhlili</h6>
-                      <ul>{topic.quizAnalysis.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                    </div>
-                  )}
-                  {topic.codeAnalysis?.length > 0 && (
-                    <div className="detail-subsection">
-                      <h6>💻 Kod Təhlili</h6>
-                      <ul>{topic.codeAnalysis.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+      <div className="ai-analysis loading">
+        <Loader2 size={48} className="spin" />
+        <p>Məlumatlar yüklənir...</p>
       </div>
     );
-  };
-
-  const renderQuizDetails = () => {
-    const byTopic = {};
-    sessionData.quizAttempts.forEach(q => {
-      if (!byTopic[q.topicId]) {
-        byTopic[q.topicId] = {
-          title: topics[q.topicId - 1]?.title || `Mövzu ${q.topicId}`,
-          attempts: []
-        };
-      }
-      byTopic[q.topicId].attempts.push(q);
-    });
-
-    return Object.entries(byTopic).map(([topicId, data]) => (
-      <div key={topicId} className="detail-card">
-        <div 
-          className="detail-header" 
-          onClick={() => setSelectedDetail(selectedDetail === `quiz-${topicId}` ? null : `quiz-${topicId}`)}
-        >
-          <div className="detail-title">
-            <div className="detail-icon quiz">
-              <FileQuestion size={20} />
-            </div>
-            <div className="detail-text">
-              <span className="detail-name">{data.title}</span>
-              <span className="detail-meta">{data.attempts.length} sual cavablandırılıb</span>
-            </div>
-          </div>
-          {selectedDetail === `quiz-${topicId}` ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-        </div>
-        
-        {selectedDetail === `quiz-${topicId}` && (
-          <div className="detail-content">
-            {data.attempts.map((q, idx) => (
-              <div key={idx} className={`attempt-item ${q.isCorrect ? 'success' : 'error'}`}>
-                <div className="attempt-header">
-                  <span className="attempt-num">Sual {q.questionIndex + 1}</span>
-                  {q.isCorrect ? (
-                    <span className="status-badge success">Düzgün</span>
-                  ) : (
-                    <span className="status-badge error">Səhv</span>
-                  )}
-                </div>
-                
-                <p className="question-text">{q.question}</p>
-                
-                <div className="answer-comparison">
-                  <div className={`answer-box ${q.isCorrect ? 'correct' : 'wrong'}`}>
-                    <label>Sizin Cavabınız</label>
-                    <span>{q.userAnswer || 'Cavab verilməyib'}</span>
-                  </div>
-                  {!q.isCorrect && (
-                    <div className="answer-box correct">
-                      <label>Düzgün Cavab</label>
-                      <span>{q.options?.[q.correctAnswer] || 'Bilinmir'}</span>
-                    </div>
-                  )}
-                </div>
-                
-                {!q.isCorrect && (
-                  <div className="error-explanation">
-                    <AlertCircle size={16} />
-                    <p>Bu sualda səhv etdiniz. Konsepti daha yaxşı mənimsəmək üçün mövzunu təkrarlayın.</p>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    ));
-  };
-
-  const renderCodeDetails = () => {
-    const byTopic = {};
-    sessionData.codeAttempts.forEach(c => {
-      if (!byTopic[c.topicId]) {
-        byTopic[c.topicId] = {
-          title: topics[c.topicId - 1]?.title || `Mövzu ${c.topicId}`,
-          attempts: []
-        };
-      }
-      byTopic[c.topicId].attempts.push(c);
-    });
-
-    return Object.entries(byTopic).map(([topicId, data]) => (
-      <div key={topicId} className="detail-card">
-        <div 
-          className="detail-header" 
-          onClick={() => setSelectedDetail(selectedDetail === `code-${topicId}` ? null : `code-${topicId}`)}
-        >
-          <div className="detail-title">
-            <div className="detail-icon code">
-              <Terminal size={20} />
-            </div>
-            <div className="detail-text">
-              <span className="detail-name">{data.title}</span>
-              <span className="detail-meta">{data.attempts.length} kod cəhdi</span>
-            </div>
-          </div>
-          {selectedDetail === `code-${topicId}` ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-        </div>
-        
-        {selectedDetail === `code-${topicId}` && (
-          <div className="detail-content">
-            {data.attempts.map((c, idx) => (
-              <div key={idx} className={`attempt-item ${c.isSuccess ? 'success' : 'error'}`}>
-                <div className="attempt-header">
-                  <span className="attempt-num">Cəhd {idx + 1}</span>
-                  <span className={`status-badge ${c.isSuccess ? 'success' : 'error'}`}>
-                    {c.isSuccess ? 'Uğurlu' : c.errorCategory || 'Xəta'}
-                  </span>
-                </div>
-                
-                <div className="code-preview">
-                  <div className="code-header-small">
-                    <Code2 size={14} />
-                    <span>Yazdığınız Kod</span>
-                  </div>
-                  <pre className="code-snippet"><code>{c.code?.substring(0, 300) || 'Kod yoxdur'}</code></pre>
-                </div>
-                
-                {c.error && (
-                  <div className="error-details">
-                    <div className="error-header-small">
-                      <Bug size={14} />
-                      <span>Xəta {c.errorLine ? `(Sətir ${c.errorLine})` : ''}</span>
-                    </div>
-                    <div className="error-message-box">
-                      <p>{c.error?.substring(0, 250)}</p>
-                    </div>
-                    <div className="error-help">
-                      <Lightbulb size={14} />
-                      <span>Bu xətanı düzəltmək üçün sətrdəki yazılışı yoxlayın və ya mövzunun izahatına baxın.</span>
-                    </div>
-                  </div>
-                )}
-                
-                {c.output && (
-                  <div className="output-preview">
-                    <label>Nəticə:</label>
-                    <pre>{c.output?.substring(0, 200)}</pre>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    ));
-  };
+  }
 
   if (!user) {
     return (
-      <div className="analysis-guest">
-        <Brain size={64} />
-        <h2>AI Mentor</h2>
-        <p>Təhlil üçün daxil olun</p>
+      <div className="ai-analysis guest">
+        <Lock size={64} />
+        <h2>Giriş Tələb Olunur</h2>
+        <p>Fərdi AI təhlili görmək üçün daxil olun</p>
       </div>
     );
   }
 
   return (
     <div className="ai-analysis">
-      {/* Header */}
-      <header className="ai-header">
-        <div className="header-brand">
-          <div className="brand-icon">
-            <Brain size={32} />
-          </div>
-          <div className="brand-text">
-            <h1>🤖 AI Mentor</h1>
-            <p>Fərdi Təlim Planı və Təhlil</p>
-          </div>
-        </div>
-        
-        <div className="header-actions">
-          {aiAnalysis.hasAnalysis && (
-            <button 
-              className="reset-btn"
-              onClick={() => setShowResetConfirm(true)}
-              title="Analizi sıfırla"
-            >
-              <RotateCcw size={18} />
-              <span>Sıfırla</span>
-            </button>
-          )}
-          
-          <button 
-            className="analyze-btn"
-            onClick={generateAnalysis}
-            disabled={aiAnalysis.loading}
-          >
-            {aiAnalysis.loading ? (
-              <>
-                <Loader2 className="spin" size={20} />
-                <span>Təhlil edilir...</span>
-              </>
-            ) : (
-              <>
-                <Zap size={20} />
-                <span>{aiAnalysis.hasAnalysis ? 'Yenilə' : 'Analiz Et'}</span>
-              </>
-            )}
-          </button>
-        </div>
-      </header>
+      {renderHeader()}
 
-      {/* Reset Confirmation Modal */}
-      {showResetConfirm && (
-        <div className="modal-overlay" onClick={() => setShowResetConfirm(false)}>
+      {/* Reset Modal */}
+      {showResetModal && (
+        <div className="modal-overlay" onClick={() => setShowResetModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <div className="modal-icon warning">
-              <AlertTriangle size={32} />
-            </div>
-            <h3>Analizi Sıfırlamaq</h3>
+            <AlertTriangle size={48} className="modal-icon" />
+            <h3>Təhlili Sıfırlamaq</h3>
             <p>Bütün AI təhlili və statistikalar silinəcək. Bu əməliyyat geri qaytarıla bilməz.</p>
             <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setShowResetConfirm(false)}>
-                Ləğv Et
-              </button>
+              <button className="btn-secondary" onClick={() => setShowResetModal(false)}>Ləğv Et</button>
               <button className="btn-danger" onClick={resetAnalysis}>
-                <Trash2 size={16} />
-                Sıfırla
+                <Trash2 size={16} /> Sıfırla
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Token Info */}
-      {aiAnalysis.hasAnalysis && (
-        <div className="info-bar">
-          <div className="token-info">
-            <span>📊 Tokens: {tokenInfo.input} → {tokenInfo.output}</span>
-          </div>
-          {aiAnalysis.progressStats && (
-            <div className="progress-context">
-              <span>📚 {aiAnalysis.progressStats.completedTopics}/{aiAnalysis.progressStats.totalTopics} mövzu təhlil edildi</span>
-            </div>
-          )}
         </div>
       )}
 
       {/* Error */}
-      {aiAnalysis.error && (
+      {error && (
         <div className="error-banner">
           <AlertCircle size={24} />
-          <p>{aiAnalysis.error}</p>
-          <button onClick={() => setAiAnalysis(p => ({...p, error: null}))}>Bağla</button>
+          <p>{error}</p>
+          <button onClick={() => setError(null)}><X size={18} /></button>
         </div>
       )}
 
-      {/* Main Content */}
+      {/* Tabs */}
+      <div className="view-tabs">
+        <button 
+          className={viewMode === 'overview' ? 'active' : ''}
+          onClick={() => setViewMode('overview')}
+        >
+          <BarChart3 size={18} /> Ümumi
+        </button>
+        <button 
+          className={viewMode === 'topics' ? 'active' : ''}
+          onClick={() => setViewMode('topics')}
+        >
+          <Layers size={18} /> Mövzular
+        </button>
+        <button 
+          className={viewMode === 'report' ? 'active' : ''}
+          onClick={() => setViewMode('report')}
+        >
+          <FileText size={18} /> Hesabat
+        </button>
+      </div>
+
+      {/* Content */}
       <main className="ai-content">
-        {!aiAnalysis.hasAnalysis && !aiAnalysis.loading ? (
-          <div className="empty-state">
-            <div className="empty-illustration">
-              <BookOpen size={64} />
-              <div className="floating-icons">
-                <FileQuestion size={32} />
-                <Terminal size={32} />
-              </div>
-            </div>
-            <h2>Hələ təhlil yoxdur</h2>
-            <p className="empty-desc">
-              Quiz və kod tapşırıqlarını tamamlayın. AI mentor hər mövzu üçün 
-              ayrı-ayrılıqda və ümumi kurs üzrə detallı təhlil aparacaq.
-            </p>
-            {renderProgressBar()}
-          </div>
-        ) : aiAnalysis.loading ? (
-          <div className="loading-state">
-            <div className="loading-animation">
-              <Brain size={48} className="pulse" />
-              <div className="loading-text">
-                <h2>AI təhlil aparır...</h2>
-                <p>Hər mövzu ayrı-ayrılıqda təhlil edilir</p>
-              </div>
-            </div>
-            <div className="loading-steps">
-              <div className="step active">Quiz nəticələri yoxlanılır</div>
-              <div className="step active">Kod cəhdləri təhlil edilir</div>
-              <div className="step">Səviyyələr müəyyən edilir</div>
-              <div className="step">Tövsiyələr hazırlanır</div>
-            </div>
-          </div>
-        ) : (
-          <div className="analysis-result">
-            {/* Progress Overview */}
-            {renderProgressBar()}
-            
-            {/* Summary Card */}
-            <div className="summary-card">
-              <div className="summary-header">
-                <div className="summary-icon">
-                  <Award size={28} />
-                </div>
-                <div className="summary-title">
-                  <h2>Ümumi Qiymətləndirmə</h2>
-                  {aiAnalysis.overallLevel && (
-                    <span className={`level-badge-large ${aiAnalysis.overallLevel.toLowerCase().replace(/\s/g, '-')}`}>
-                      {aiAnalysis.overallLevel} Səviyyə
-                    </span>
-                  )}
-                </div>
-              </div>
-              <p className="summary-text">{aiAnalysis.summary}</p>
-            </div>
-
-            {/* Topic-based Analysis */}
-            {renderTopicAnalysis()}
-
-            {/* Weak Topics Alert */}
-            {aiAnalysis.weakTopics?.length > 0 && (
-              <div className="alert-section weak-topics">
-                <div className="alert-header">
-                  <AlertTriangle size={24} />
-                  <h3>Diqqət Yetirilməli Mövzular</h3>
-                </div>
-                <p className="alert-desc">
-                  Bu mövzularda çətinlik çəkirsiniz. Tövsiyə edilir ki, hər birini təkrarlayın:
-                </p>
-                <ul className="weak-list">
-                  {aiAnalysis.weakTopics.map((topic, idx) => (
-                    <li key={idx}>
-                      <XCircle size={16} />
-                      <span>{topic}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Strong Topics */}
-            {aiAnalysis.strongTopics?.length > 0 && (
-              <div className="alert-section strong-topics">
-                <div className="alert-header">
-                  <CheckCircle2 size={24} />
-                  <h3>Güclü Tərəfləriniz</h3>
-                </div>
-                <ul className="strong-list">
-                  {aiAnalysis.strongTopics.map((topic, idx) => (
-                    <li key={idx}>
-                      <CheckCircle2 size={16} />
-                      <span>{topic}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Error Patterns */}
-            {aiAnalysis.errorPatterns?.length > 0 && (
-              <div className="section-card error-patterns">
-                <h3 className="section-title">
-                  <Bug size={20} />
-                  Tez-tez Təkrarlanan Xətalar
-                </h3>
-                <div className="pattern-list">
-                  {aiAnalysis.errorPatterns.map((pattern, idx) => (
-                    <div key={idx} className="pattern-item">
-                      <span className="pattern-num">{idx + 1}</span>
-                      <p>{pattern}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Recommendations */}
-            {aiAnalysis.recommendations?.length > 0 && (
-              <div className="recommendations-section">
-                <h3 className="section-main-title">
-                  <Lightbulb size={24} />
-                  Fərdi Təlim Planı
-                </h3>
-                <div className="recommendation-grid">
-                  {aiAnalysis.recommendations.map((rec, idx) => (
-                    <div key={idx} className="recommendation-card">
-                      <div className="rec-number">{idx + 1}</div>
-                      <div className="rec-content">
-                        <p>{rec}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Next Steps */}
-            {aiAnalysis.nextSteps && (
-              <div className="next-steps-card">
-                <div className="next-steps-header">
-                  <ArrowRight size={24} />
-                  <h3>Növbəti Addımlar</h3>
-                </div>
-                <p className="next-steps-text">{aiAnalysis.nextSteps}</p>
-              </div>
-            )}
-          </div>
-        )}
+        {viewMode === 'overview' && renderOverview()}
+        {viewMode === 'topics' && renderTopics()}
+        {viewMode === 'report' && renderReport()}
       </main>
 
-      {/* Expandable Details */}
-      {sessionData.totalAttempts > 0 && (
-        <section className="details-section">
-          <h2 className="details-title">Ətraflı Nəticələr</h2>
-          
-          <div className="details-tabs">
-            <button 
-              className={`tab-btn ${activeSection === 'quiz' ? 'active' : ''}`}
-              onClick={() => setActiveSection(activeSection === 'quiz' ? '' : 'quiz')}
-            >
-              <FileQuestion size={18} />
-              <span>Quiz Tarixçəsi</span>
-              <span className="tab-count">{sessionData.quizAttempts.length}</span>
-            </button>
-            <button 
-              className={`tab-btn ${activeSection === 'code' ? 'active' : ''}`}
-              onClick={() => setActiveSection(activeSection === 'code' ? '' : 'code')}
-            >
-              <Terminal size={18} />
-              <span>Kod Tarixçəsi</span>
-              <span className="tab-count">{sessionData.codeAttempts.length}</span>
-            </button>
-          </div>
-
-          <div className="details-content">
-            {activeSection === 'quiz' && renderQuizDetails()}
-            {activeSection === 'code' && renderCodeDetails()}
-          </div>
-        </section>
+      {/* Footer */}
+      {analysis && (
+        <footer className="analysis-footer">
+          <span>🤖 {analysis.model}</span>
+          <span>•</span>
+          <span>🕐 {new Date(analysis.generatedAt).toLocaleString('az-AZ')}</span>
+        </footer>
       )}
 
       {/* CSS */}
@@ -1217,13 +1245,12 @@ const AIAnalysis = ({ user, courseId, currentTopic, topics, isActivated, current
           max-width: 1200px;
           margin: 0 auto;
           padding: 24px;
-          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-          background: #f1f5f9;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background: #f8fafc;
           min-height: 100vh;
-          line-height: 1.6;
+          color: #1e293b;
         }
 
-        /* ===== HEADER ===== */
         .ai-header {
           display: flex;
           justify-content: space-between;
@@ -1233,8 +1260,6 @@ const AIAnalysis = ({ user, courseId, currentTopic, topics, isActivated, current
           background: white;
           border-radius: 16px;
           box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-          flex-wrap: wrap;
-          gap: 16px;
         }
 
         .header-brand {
@@ -1244,29 +1269,28 @@ const AIAnalysis = ({ user, courseId, currentTopic, topics, isActivated, current
         }
 
         .brand-icon {
-          width: 60px;
-          height: 60px;
+          width: 56px;
+          height: 56px;
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          border-radius: 16px;
+          border-radius: 12px;
           display: flex;
           align-items: center;
           justify-content: center;
           color: white;
-          box-shadow: 0 4px 6px -1px rgba(102, 126, 234, 0.3);
         }
 
         .brand-text h1 {
           margin: 0;
-          font-size: 26px;
-          color: #1e293b;
-          font-weight: 700;
+          font-size: 24px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
         }
 
         .brand-text p {
           margin: 4px 0 0;
-          font-size: 15px;
           color: #64748b;
-          font-weight: 500;
+          font-size: 14px;
         }
 
         .header-actions {
@@ -1274,51 +1298,48 @@ const AIAnalysis = ({ user, courseId, currentTopic, topics, isActivated, current
           gap: 12px;
         }
 
-        .analyze-btn {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 14px 28px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          border: none;
-          border-radius: 12px;
-          font-size: 16px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          box-shadow: 0 4px 6px -1px rgba(102, 126, 234, 0.2);
-        }
-
-        .analyze-btn:hover:not(:disabled) {
-          transform: translateY(-2px);
-          box-shadow: 0 10px 15px -3px rgba(102, 126, 234, 0.3);
-        }
-
-        .analyze-btn:disabled {
-          opacity: 0.7;
-          cursor: not-allowed;
-        }
-
-        .reset-btn {
+        .btn-primary, .btn-secondary, .btn-danger {
           display: flex;
           align-items: center;
           gap: 8px;
-          padding: 14px 20px;
-          background: white;
-          color: #64748b;
-          border: 2px solid #e2e8f0;
-          border-radius: 12px;
-          font-size: 15px;
+          padding: 12px 20px;
+          border-radius: 10px;
+          font-size: 14px;
           font-weight: 600;
           cursor: pointer;
+          border: none;
           transition: all 0.2s;
         }
 
-        .reset-btn:hover {
+        .btn-primary {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-primary:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .btn-secondary {
+          background: white;
+          color: #64748b;
+          border: 2px solid #e2e8f0;
+        }
+
+        .btn-secondary:hover {
           border-color: #ef4444;
           color: #ef4444;
-          background: #fef2f2;
+        }
+
+        .btn-danger {
+          background: #ef4444;
+          color: white;
         }
 
         .spin {
@@ -1330,7 +1351,597 @@ const AIAnalysis = ({ user, courseId, currentTopic, topics, isActivated, current
           to { transform: rotate(360deg); }
         }
 
-        /* ===== MODAL ===== */
+        .view-tabs {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 24px;
+          background: white;
+          padding: 6px;
+          border-radius: 12px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .view-tabs button {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 20px;
+          border-radius: 8px;
+          border: none;
+          background: transparent;
+          color: #64748b;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .view-tabs button.active {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+        }
+
+        .ai-content {
+          background: white;
+          border-radius: 16px;
+          padding: 24px;
+          min-height: 400px;
+        }
+
+        .stats-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+          gap: 20px;
+          margin-bottom: 24px;
+        }
+
+        .stat-card {
+          background: #f8fafc;
+          border-radius: 12px;
+          padding: 20px;
+          border: 2px solid #e2e8f0;
+        }
+
+        .stat-card.main {
+          border-color: #667eea;
+          background: linear-gradient(135deg, #f0f4ff 0%, #f8fafc 100%);
+        }
+
+        .stat-header {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-bottom: 16px;
+          color: #64748b;
+        }
+
+        .stat-header h3 {
+          margin: 0;
+          font-size: 16px;
+          color: #1e293b;
+        }
+
+        .big-score {
+          font-size: 48px;
+          font-weight: 800;
+          margin-bottom: 8px;
+        }
+
+        .level-badge {
+          display: inline-block;
+          padding: 6px 12px;
+          border-radius: 20px;
+          font-size: 13px;
+          font-weight: 600;
+          margin-bottom: 16px;
+        }
+
+        .progress-bar {
+          height: 8px;
+          background: #e2e8f0;
+          border-radius: 4px;
+          overflow: hidden;
+          margin-bottom: 8px;
+        }
+
+        .progress-fill {
+          height: 100%;
+          background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+          border-radius: 4px;
+          transition: width 0.6s ease;
+        }
+
+        .stat-desc {
+          margin: 0;
+          color: #64748b;
+          font-size: 14px;
+        }
+
+        .topic-name {
+          font-size: 18px;
+          font-weight: 600;
+          color: #1e293b;
+          margin-bottom: 8px;
+        }
+
+        .topic-score {
+          font-size: 32px;
+          font-weight: 700;
+          margin-bottom: 4px;
+        }
+
+        .ai-summary {
+          margin-top: 32px;
+          padding-top: 24px;
+          border-top: 2px solid #e2e8f0;
+        }
+
+        .ai-summary h3 {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin: 0 0 20px;
+          color: #1e293b;
+        }
+
+        .insights-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 16px;
+        }
+
+        .insight-card {
+          padding: 20px;
+          border-radius: 12px;
+          border-left: 4px solid;
+        }
+
+        .insight-card.positive {
+          background: #f0fdf4;
+          border-left-color: #10b981;
+        }
+
+        .insight-card.negative {
+          background: #fef2f2;
+          border-left-color: #ef4444;
+        }
+
+        .insight-card.plan {
+          background: #eff6ff;
+          border-left-color: #3b82f6;
+        }
+
+        .insight-card h4 {
+          margin: 0 0 12px;
+          font-size: 15px;
+        }
+
+        .insight-card ul {
+          margin: 0;
+          padding-left: 18px;
+        }
+
+        .insight-card li {
+          margin-bottom: 6px;
+          font-size: 14px;
+          color: #475569;
+        }
+
+        .motivation-box {
+          margin-top: 20px;
+          padding: 20px;
+          background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          color: #92400e;
+        }
+
+        .motivation-box p {
+          margin: 0;
+          font-size: 15px;
+          font-style: italic;
+        }
+
+        .topics-list {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .topic-card {
+          background: #f8fafc;
+          border-radius: 12px;
+          overflow: hidden;
+          border-left: 4px solid;
+          transition: all 0.2s;
+        }
+
+        .topic-card:hover {
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .topic-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 16px 20px;
+          cursor: pointer;
+        }
+
+        .topic-info {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .topic-number {
+          width: 36px;
+          height: 36px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-weight: 700;
+          font-size: 13px;
+        }
+
+        .topic-info h4 {
+          margin: 0 0 6px;
+          font-size: 16px;
+        }
+
+        .topic-badges {
+          display: flex;
+          gap: 8px;
+        }
+
+        .badge {
+          padding: 4px 10px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 600;
+        }
+
+        .badge.score {
+          background: #e2e8f0;
+          color: #475569;
+        }
+
+        .badge.error {
+          background: #fef2f2;
+          color: #dc2626;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .topic-stats {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          color: #64748b;
+        }
+
+        .mini-stat {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 13px;
+        }
+
+        .trend-icon {
+          padding: 6px;
+          border-radius: 50%;
+        }
+
+        .trend-icon.up {
+          color: #10b981;
+          background: #dcfce7;
+        }
+
+        .trend-icon.down {
+          color: #ef4444;
+          background: #fef2f2;
+        }
+
+        .trend-icon.neutral {
+          color: #64748b;
+          background: #f1f5f9;
+        }
+
+        .topic-details {
+          padding: 0 20px 20px;
+          border-top: 1px solid #e2e8f0;
+        }
+
+        .detail-section {
+          margin-top: 20px;
+        }
+
+        .detail-section h5 {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin: 0 0 12px;
+          font-size: 14px;
+          color: #1e293b;
+        }
+
+        .recommendations {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .rec-item {
+          display: flex;
+          gap: 12px;
+          align-items: flex-start;
+          padding: 14px;
+          border-radius: 10px;
+          border-left: 3px solid;
+        }
+
+        .rec-item.critical {
+          background: #fef2f2;
+          border-left-color: #ef4444;
+        }
+
+        .rec-item.warning {
+          background: #fffbeb;
+          border-left-color: #f59e0b;
+        }
+
+        .rec-item.error {
+          background: #eff6ff;
+          border-left-color: #3b82f6;
+        }
+
+        .rec-item.focus {
+          background: #f5f3ff;
+          border-left-color: #8b5cf6;
+        }
+
+        .rec-item.success {
+          background: #f0fdf4;
+          border-left-color: #10b981;
+        }
+
+        .rec-icon {
+          font-size: 20px;
+        }
+
+        .rec-item strong {
+          display: block;
+          margin-bottom: 4px;
+          font-size: 14px;
+          color: #1e293b;
+        }
+
+        .rec-item p {
+          margin: 0;
+          font-size: 13px;
+          color: #64748b;
+        }
+
+        .error-card {
+          background: #fef2f2;
+          border: 1px solid #fecaca;
+          border-radius: 10px;
+          padding: 16px;
+          margin-bottom: 12px;
+        }
+
+        .error-header {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 12px;
+        }
+
+        .error-cat {
+          background: #dc2626;
+          color: white;
+          padding: 4px 10px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 600;
+        }
+
+        .error-count {
+          color: #7f1d1d;
+          font-size: 13px;
+          font-weight: 500;
+        }
+
+        .error-help p {
+          margin: 0 0 8px;
+          font-size: 13px;
+          color: #475569;
+        }
+
+        .error-help .tip {
+          color: #92400e;
+          background: #fef3c7;
+          padding: 8px;
+          border-radius: 6px;
+          margin-top: 8px;
+        }
+
+        .activity-list {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .activity-item {
+          padding: 10px 14px;
+          border-radius: 8px;
+          font-size: 13px;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .activity-item.success {
+          background: #f0fdf4;
+          color: #166534;
+        }
+
+        .activity-item.error {
+          background: #fef2f2;
+          color: #991b1b;
+        }
+
+        .activity-item small {
+          margin-top: 4px;
+          opacity: 0.8;
+        }
+
+        .report-section {
+          max-width: 800px;
+          margin: 0 auto;
+        }
+
+        .report-header {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          margin-bottom: 24px;
+          padding-bottom: 20px;
+          border-bottom: 2px solid #e2e8f0;
+        }
+
+        .report-header h2 {
+          margin: 0;
+          flex: 1;
+          font-size: 22px;
+        }
+
+        .report-date {
+          color: #64748b;
+          font-size: 14px;
+        }
+
+        .report-stats {
+          display: flex;
+          gap: 24px;
+          margin-bottom: 24px;
+        }
+
+        .r-stat {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .r-label {
+          font-size: 13px;
+          color: #64748b;
+        }
+
+        .r-value {
+          font-size: 24px;
+          font-weight: 700;
+        }
+
+        .raw-analysis {
+          background: #f8fafc;
+          border-radius: 12px;
+          padding: 20px;
+        }
+
+        .raw-analysis h4 {
+          margin: 0 0 16px;
+          color: #1e293b;
+        }
+
+        .raw-content {
+          font-size: 14px;
+          line-height: 1.8;
+          color: #475569;
+        }
+
+        .raw-content p {
+          margin: 0 0 12px;
+        }
+
+        .raw-content .bold {
+          font-weight: 600;
+          color: #1e293b;
+        }
+
+        .empty-state {
+          text-align: center;
+          padding: 60px 20px;
+        }
+
+        .empty-icon {
+          color: #667eea;
+          margin-bottom: 24px;
+        }
+
+        .empty-state h2 {
+          margin: 0 0 12px;
+          color: #1e293b;
+        }
+
+        .empty-state p {
+          color: #64748b;
+          margin-bottom: 24px;
+        }
+
+        .progress-mini {
+          max-width: 300px;
+          margin: 0 auto 24px;
+        }
+
+        .progress-bar-mini {
+          height: 10px;
+          background: #e2e8f0;
+          border-radius: 5px;
+          overflow: hidden;
+          margin-bottom: 8px;
+        }
+
+        .progress-fill-mini {
+          height: 100%;
+          background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+          border-radius: 5px;
+          transition: width 0.6s ease;
+        }
+
+        .next-steps {
+          background: #f8fafc;
+          padding: 20px;
+          border-radius: 12px;
+          max-width: 400px;
+          margin: 0 auto;
+          text-align: left;
+        }
+
+        .next-steps p {
+          font-weight: 600;
+          margin: 0 0 12px;
+          color: #1e293b;
+        }
+
+        .next-steps ul {
+          margin: 0;
+          padding-left: 20px;
+          color: #475569;
+        }
+
+        .next-steps li {
+          margin-bottom: 8px;
+        }
+
+        .empty-report {
+          text-align: center;
+          padding: 40px;
+        }
+
         .modal-overlay {
           position: fixed;
           top: 0;
@@ -1343,45 +1954,31 @@ const AIAnalysis = ({ user, courseId, currentTopic, topics, isActivated, current
           justify-content: center;
           z-index: 1000;
           padding: 20px;
-          backdrop-filter: blur(4px);
         }
 
         .modal-content {
           background: white;
-          padding: 32px;
-          border-radius: 20px;
-          max-width: 420px;
+          padding: 28px;
+          border-radius: 16px;
+          max-width: 400px;
           width: 100%;
           text-align: center;
-          box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
         }
 
         .modal-icon {
-          width: 64px;
-          height: 64px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin: 0 auto 20px;
-        }
-
-        .modal-icon.warning {
-          background: #fef3c7;
-          color: #d97706;
+          color: #f59e0b;
+          margin-bottom: 16px;
         }
 
         .modal-content h3 {
           margin: 0 0 12px;
-          font-size: 22px;
-          color: #1e293b;
+          font-size: 20px;
         }
 
         .modal-content p {
-          margin: 0 0 24px;
+          margin: 0 0 20px;
           color: #64748b;
-          font-size: 15px;
-          line-height: 1.5;
+          font-size: 14px;
         }
 
         .modal-actions {
@@ -1389,1143 +1986,80 @@ const AIAnalysis = ({ user, courseId, currentTopic, topics, isActivated, current
           gap: 12px;
         }
 
-        .btn-secondary {
-          flex: 1;
-          padding: 12px 20px;
-          background: #f1f5f9;
-          color: #475569;
-          border: none;
-          border-radius: 10px;
-          font-size: 15px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .btn-secondary:hover {
-          background: #e2e8f0;
-        }
-
-        .btn-danger {
-          flex: 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          padding: 12px 20px;
-          background: #ef4444;
-          color: white;
-          border: none;
-          border-radius: 10px;
-          font-size: 15px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .btn-danger:hover {
-          background: #dc2626;
-        }
-
-        /* ===== INFO BAR ===== */
-        .info-bar {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 20px;
-          padding: 12px 20px;
-          background: #e0e7ff;
-          border-radius: 12px;
-          font-size: 13px;
-          color: #4338ca;
-          font-weight: 500;
-          flex-wrap: wrap;
-          gap: 12px;
-        }
-
-        /* ===== ERROR BANNER ===== */
         .error-banner {
           display: flex;
           align-items: center;
-          gap: 16px;
-          padding: 20px;
+          gap: 12px;
+          padding: 16px;
           background: #fef2f2;
           color: #dc2626;
-          border-radius: 12px;
-          margin-bottom: 24px;
-          border: 1px solid #fecaca;
+          border-radius: 10px;
+          margin-bottom: 20px;
         }
 
         .error-banner button {
           margin-left: auto;
-          padding: 8px 16px;
-          background: #dc2626;
-          color: white;
+          background: none;
           border: none;
-          border-radius: 8px;
+          color: #dc2626;
           cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
         }
 
-        /* ===== EMPTY STATE ===== */
-        .empty-state {
-          text-align: center;
-          padding: 60px 20px;
-          background: white;
-          border-radius: 20px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        .empty-illustration {
-          position: relative;
-          display: inline-flex;
-          margin-bottom: 32px;
-          color: #667eea;
-        }
-
-        .floating-icons {
-          position: absolute;
-          top: -10px;
-          right: -30px;
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-
-        .floating-icons svg {
-          background: white;
-          padding: 8px;
-          border-radius: 50%;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-          color: #764ba2;
-        }
-
-        .empty-state h2 {
-          margin: 0 0 16px;
-          font-size: 26px;
-          color: #1e293b;
-          font-weight: 700;
-        }
-
-        .empty-desc {
-          margin: 0 auto 32px;
-          color: #64748b;
-          font-size: 17px;
-          max-width: 500px;
-          line-height: 1.6;
-        }
-
-        /* ===== LOADING STATE ===== */
-        .loading-state {
-          text-align: center;
-          padding: 60px 20px;
-          background: white;
-          border-radius: 20px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        .loading-animation {
-          margin-bottom: 32px;
-        }
-
-        .pulse {
-          animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-          color: #667eea;
-        }
-
-        @keyframes pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: .6; transform: scale(1.05); }
-        }
-
-        .loading-text h2 {
-          margin: 16px 0 8px;
-          font-size: 24px;
-          color: #1e293b;
-        }
-
-        .loading-text p {
-          margin: 0;
-          color: #64748b;
-          font-size: 16px;
-        }
-
-        .loading-steps {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-          max-width: 400px;
-          margin: 0 auto;
-        }
-
-        .step {
+        .analysis-footer {
+          margin-top: 32px;
           padding: 16px;
-          background: #f1f5f9;
-          border-radius: 10px;
+          text-align: center;
           color: #64748b;
-          font-size: 15px;
-          position: relative;
-          padding-left: 48px;
-        }
-
-        .step::before {
-          content: '○';
-          position: absolute;
-          left: 16px;
-          font-size: 20px;
-        }
-
-        .step.active {
-          background: #e0e7ff;
-          color: #4338ca;
-          font-weight: 500;
-        }
-
-        .step.active::before {
-          content: '◉';
-        }
-
-        /* ===== PROGRESS SECTION ===== */
-        .progress-section {
-          background: white;
-          padding: 28px;
-          border-radius: 16px;
-          margin-bottom: 24px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        .progress-header {
+          font-size: 13px;
           display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 20px;
-        }
-
-        .progress-title {
-          display: flex;
-          align-items: center;
+          justify-content: center;
           gap: 16px;
         }
 
-        .progress-title svg {
-          color: #667eea;
-        }
-
-        .progress-title h3 {
-          margin: 0;
-          font-size: 20px;
-          color: #1e293b;
-        }
-
-        .progress-subtitle {
-          margin: 4px 0 0;
-          font-size: 14px;
-          color: #64748b;
-        }
-
-        .progress-percent {
-          font-size: 32px;
-          font-weight: 700;
-          color: #667eea;
-        }
-
-        .progress-track {
-          height: 12px;
-          background: #e2e8f0;
-          border-radius: 6px;
-          overflow: hidden;
-          margin-bottom: 20px;
-        }
-
-        .progress-fill-main {
-          height: 100%;
-          background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-          border-radius: 6px;
-          transition: width 0.6s ease;
-        }
-
-        .progress-stats {
+        .loading, .guest {
           display: flex;
-          gap: 24px;
-          flex-wrap: wrap;
-        }
-
-        .progress-stat {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 14px;
-          color: #64748b;
-        }
-
-        .progress-stat svg {
-          color: #94a3b8;
-        }
-
-        /* ===== SUMMARY CARD ===== */
-        .summary-card {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          padding: 32px;
-          border-radius: 20px;
-          margin-bottom: 24px;
-          box-shadow: 0 10px 25px -5px rgba(102, 126, 234, 0.4);
-        }
-
-        .summary-header {
-          display: flex;
-          align-items: center;
-          gap: 20px;
-          margin-bottom: 20px;
-        }
-
-        .summary-icon {
-          width: 56px;
-          height: 56px;
-          background: rgba(255,255,255,0.2);
-          border-radius: 16px;
-          display: flex;
+          flex-direction: column;
           align-items: center;
           justify-content: center;
-          backdrop-filter: blur(4px);
-        }
-
-        .summary-title {
-          flex: 1;
-        }
-
-        .summary-title h2 {
-          margin: 0;
-          font-size: 22px;
-          font-weight: 700;
-        }
-
-        .level-badge-large {
-          display: inline-block;
-          margin-top: 8px;
-          padding: 8px 16px;
-          background: rgba(255,255,255,0.2);
-          border-radius: 20px;
-          font-size: 14px;
-          font-weight: 600;
-          text-transform: uppercase;
-          backdrop-filter: blur(4px);
-        }
-
-        .level-badge-large.başlanğıc, .level-badge-large.beginner {
-          background: rgba(254, 202, 202, 0.9);
-          color: #991b1b;
-        }
-
-        .level-badge-large.orta, .level-badge-large.intermediate {
-          background: rgba(254, 243, 199, 0.9);
-          color: #92400e;
-        }
-
-        .level-badge-large.tam-mənimsəmiş, .level-badge-large.advanced {
-          background: rgba(187, 247, 208, 0.9);
-          color: #166534;
-        }
-
-        .summary-text {
-          margin: 0;
-          font-size: 17px;
-          line-height: 1.7;
-          opacity: 0.95;
-        }
-
-        /* ===== SECTION TITLES ===== */
-        .section-main-title {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin: 32px 0 20px;
-          font-size: 22px;
-          color: #1e293b;
-          font-weight: 700;
-        }
-
-        .section-main-title svg {
-          color: #667eea;
-        }
-
-        /* ===== TOPIC ANALYSIS ===== */
-        .topics-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-          gap: 20px;
+          min-height: 400px;
+          color: #64748b;
         }
 
         @media (max-width: 768px) {
-          .topics-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        .topic-card {
-          background: white;
-          border-radius: 16px;
-          padding: 24px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-          border-left: 4px solid #cbd5e1;
-        }
-
-        .topic-card.level-başlanğıc, .topic-card.level-beginner {
-          border-left-color: #ef4444;
-        }
-
-        .topic-card.level-orta, .topic-card.level-intermediate {
-          border-left-color: #f59e0b;
-        }
-
-        .topic-card.level-tam-mənimsəmiş, .topic-card.level-advanced {
-          border-left-color: #10b981;
-        }
-
-        .topic-card-header {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          margin-bottom: 20px;
-        }
-
-        .topic-number {
-          width: 40px;
-          height: 40px;
-          background: #f1f5f9;
-          border-radius: 10px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 700;
-          color: #64748b;
-          font-size: 14px;
-        }
-
-        .topic-info h4 {
-          margin: 0 0 6px;
-          font-size: 17px;
-          color: #1e293b;
-          font-weight: 600;
-        }
-
-        .level-tag {
-          display: inline-block;
-          padding: 4px 12px;
-          border-radius: 20px;
-          font-size: 12px;
-          font-weight: 600;
-          text-transform: uppercase;
-        }
-
-        .level-tag.başlanğıc, .level-tag.beginner {
-          background: #fef2f2;
-          color: #dc2626;
-        }
-
-        .level-tag.orta, .level-tag.intermediate {
-          background: #fffbeb;
-          color: #d97706;
-        }
-
-        .level-tag.tam-mənimsəmiş, .level-tag.advanced {
-          background: #f0fdf4;
-          color: #16a34a;
-        }
-
-        .topic-weaknesses, .topic-suggestions {
-          margin-top: 16px;
-          padding: 16px;
-          border-radius: 12px;
-        }
-
-        .topic-weaknesses {
-          background: #fef2f2;
-          border: 1px solid #fecaca;
-        }
-
-        .topic-weaknesses h5 {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          margin: 0 0 12px;
-          font-size: 14px;
-          color: #dc2626;
-          font-weight: 600;
-        }
-
-        .topic-suggestions {
-          background: #f0fdf4;
-          border: 1px solid #bbf7d0;
-        }
-
-        .topic-suggestions h5 {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          margin: 0 0 12px;
-          font-size: 14px;
-          color: #16a34a;
-          font-weight: 600;
-        }
-
-        .topic-weaknesses ul, .topic-suggestions ul {
-          margin: 0;
-          padding-left: 20px;
-        }
-
-        .topic-weaknesses li, .topic-suggestions li {
-          margin-bottom: 8px;
-          font-size: 14px;
-          color: #475569;
-          line-height: 1.5;
-        }
-
-        .topic-details-toggle {
-          margin-top: 16px;
-          padding-top: 16px;
-          border-top: 1px solid #e2e8f0;
-        }
-
-        .topic-details-toggle button {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          width: 100%;
-          padding: 10px;
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          color: #64748b;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .topic-details-toggle button:hover {
-          background: #f1f5f9;
-          color: #475569;
-        }
-
-        .topic-detailed-content {
-          margin-top: 16px;
-          padding-top: 16px;
-          border-top: 1px solid #e2e8f0;
-        }
-
-        .detail-subsection {
-          margin-bottom: 16px;
-        }
-
-        .detail-subsection h6 {
-          margin: 0 0 10px;
-          font-size: 13px;
-          color: #64748b;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
-        .detail-subsection ul {
-          margin: 0;
-          padding-left: 18px;
-        }
-
-        .detail-subsection li {
-          margin-bottom: 6px;
-          font-size: 14px;
-          color: #475569;
-        }
-
-        /* ===== ALERT SECTIONS ===== */
-        .alert-section {
-          padding: 24px;
-          border-radius: 16px;
-          margin-bottom: 24px;
-        }
-
-        .alert-section.weak-topics {
-          background: #fef2f2;
-          border: 1px solid #fecaca;
-        }
-
-        .alert-section.strong-topics {
-          background: #f0fdf4;
-          border: 1px solid #bbf7d0;
-        }
-
-        .alert-header {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 16px;
-        }
-
-        .alert-section.weak-topics .alert-header {
-          color: #dc2626;
-        }
-
-        .alert-section.strong-topics .alert-header {
-          color: #16a34a;
-        }
-
-        .alert-header h3 {
-          margin: 0;
-          font-size: 20px;
-          font-weight: 700;
-        }
-
-        .alert-desc {
-          margin: 0 0 16px;
-          color: #7f1d1d;
-          font-size: 15px;
-          line-height: 1.5;
-        }
-
-        .weak-list, .strong-list {
-          list-style: none;
-          padding: 0;
-          margin: 0;
-        }
-
-        .weak-list li, .strong-list li {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 10px 0;
-          border-bottom: 1px solid rgba(0,0,0,0.05);
-          font-size: 15px;
-          color: #475569;
-        }
-
-        .weak-list li:last-child, .strong-list li:last-child {
-          border-bottom: none;
-        }
-
-        .weak-list svg {
-          color: #ef4444;
-          flex-shrink: 0;
-        }
-
-        .strong-list svg {
-          color: #22c55e;
-          flex-shrink: 0;
-        }
-
-        /* ===== ERROR PATTERNS ===== */
-        .section-card {
-          background: white;
-          padding: 28px;
-          border-radius: 16px;
-          margin-bottom: 24px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        .section-title {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin: 0 0 20px;
-          font-size: 20px;
-          color: #1e293b;
-          font-weight: 700;
-        }
-
-        .section-title svg {
-          color: #dc2626;
-        }
-
-        .pattern-list {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-
-        .pattern-item {
-          display: flex;
-          gap: 16px;
-          align-items: flex-start;
-          padding: 20px;
-          background: #fef2f2;
-          border-radius: 12px;
-          border-left: 4px solid #dc2626;
-        }
-
-        .pattern-num {
-          width: 32px;
-          height: 32px;
-          background: #dc2626;
-          color: white;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 14px;
-          font-weight: 700;
-          flex-shrink: 0;
-        }
-
-        .pattern-item p {
-          margin: 0;
-          font-size: 15px;
-          color: #7f1d1d;
-          line-height: 1.6;
-        }
-
-        /* ===== RECOMMENDATIONS ===== */
-        .recommendations-section {
-          margin-bottom: 24px;
-        }
-
-        .recommendation-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-          gap: 16px;
-        }
-
-        .recommendation-card {
-          display: flex;
-          gap: 16px;
-          padding: 24px;
-          background: white;
-          border-radius: 16px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-          border-left: 4px solid #f59e0b;
-        }
-
-        .rec-number {
-          width: 40px;
-          height: 40px;
-          background: linear-gradient(135deg, #f59e0b, #d97706);
-          color: white;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 18px;
-          font-weight: 700;
-          flex-shrink: 0;
-        }
-
-        .rec-content p {
-          margin: 0;
-          font-size: 15px;
-          color: #475569;
-          line-height: 1.6;
-        }
-
-        /* ===== NEXT STEPS ===== */
-        .next-steps-card {
-          background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-          color: white;
-          padding: 32px;
-          border-radius: 20px;
-          margin-bottom: 24px;
-        }
-
-        .next-steps-header {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 16px;
-        }
-
-        .next-steps-header h3 {
-          margin: 0;
-          font-size: 22px;
-          font-weight: 700;
-        }
-
-        .next-steps-text {
-          margin: 0;
-          font-size: 17px;
-          line-height: 1.7;
-          opacity: 0.9;
-        }
-
-        /* ===== DETAILS SECTION ===== */
-        .details-section {
-          margin-top: 40px;
-        }
-
-        .details-title {
-          font-size: 24px;
-          color: #1e293b;
-          margin: 0 0 24px;
-          font-weight: 700;
-        }
-
-        .details-tabs {
-          display: flex;
-          gap: 12px;
-          margin-bottom: 24px;
-          flex-wrap: wrap;
-        }
-
-        .tab-btn {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 16px 24px;
-          background: white;
-          border: 2px solid #e2e8f0;
-          border-radius: 12px;
-          font-size: 15px;
-          font-weight: 600;
-          color: #64748b;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .tab-btn:hover {
-          border-color: #667eea;
-          color: #667eea;
-        }
-
-        .tab-btn.active {
-          background: #667eea;
-          border-color: #667eea;
-          color: white;
-        }
-
-        .tab-count {
-          margin-left: 8px;
-          padding: 4px 10px;
-          background: rgba(0,0,0,0.1);
-          border-radius: 20px;
-          font-size: 13px;
-        }
-
-        .tab-btn.active .tab-count {
-          background: rgba(255,255,255,0.2);
-        }
-
-        .details-content {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-
-        /* ===== DETAIL CARDS ===== */
-        .detail-card {
-          background: white;
-          border-radius: 16px;
-          overflow: hidden;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        .detail-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 24px;
-          cursor: pointer;
-          transition: background 0.2s;
-        }
-
-        .detail-header:hover {
-          background: #f8fafc;
-        }
-
-        .detail-title {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-        }
-
-        .detail-icon {
-          width: 48px;
-          height: 48px;
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .detail-icon.quiz {
-          background: #dbeafe;
-          color: #2563eb;
-        }
-
-        .detail-icon.code {
-          background: #dcfce7;
-          color: #16a34a;
-        }
-
-        .detail-text {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-
-        .detail-name {
-          font-size: 17px;
-          font-weight: 600;
-          color: #1e293b;
-        }
-
-        .detail-meta {
-          font-size: 14px;
-          color: #64748b;
-        }
-
-        .detail-content {
-          padding: 0 24px 24px;
-        }
-
-        /* ===== ATTEMPT ITEMS ===== */
-        .attempt-item {
-          padding: 24px;
-          border-radius: 12px;
-          margin-bottom: 16px;
-        }
-
-        .attempt-item.success {
-          background: #f0fdf4;
-          border: 1px solid #bbf7d0;
-        }
-
-        .attempt-item.error {
-          background: #fef2f2;
-          border: 1px solid #fecaca;
-        }
-
-        .attempt-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
-        }
-
-        .attempt-num {
-          font-size: 15px;
-          font-weight: 600;
-          color: #475569;
-        }
-
-        .status-badge {
-          padding: 6px 14px;
-          border-radius: 20px;
-          font-size: 13px;
-          font-weight: 600;
-          text-transform: uppercase;
-        }
-
-        .status-badge.success {
-          background: #dcfce7;
-          color: #166534;
-        }
-
-        .status-badge.error {
-          background: #fee2e2;
-          color: #991b1b;
-        }
-
-        .question-text {
-          margin: 0 0 16px;
-          font-size: 16px;
-          color: #334155;
-          line-height: 1.6;
-          font-weight: 500;
-        }
-
-        .answer-comparison {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-          margin-bottom: 16px;
-        }
-
-        @media (max-width: 640px) {
-          .answer-comparison {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        .answer-box {
-          padding: 16px;
-          border-radius: 10px;
-          text-align: center;
-        }
-
-        .answer-box.wrong {
-          background: #fee2e2;
-          color: #991b1b;
-        }
-
-        .answer-box.correct {
-          background: #dcfce7;
-          color: #166534;
-        }
-
-        .answer-box label {
-          display: block;
-          font-size: 12px;
-          text-transform: uppercase;
-          margin-bottom: 6px;
-          opacity: 0.8;
-          font-weight: 600;
-        }
-
-        .answer-box span {
-          display: block;
-          font-size: 16px;
-          font-weight: 600;
-        }
-
-        .error-explanation {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 12px;
-          background: #fef2f2;
-          border-radius: 8px;
-          color: #dc2626;
-          font-size: 14px;
-        }
-
-        /* ===== CODE & ERROR DISPLAY ===== */
-        .code-preview, .error-details {
-          margin-top: 16px;
-        }
-
-        .code-header-small, .error-header-small {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 12px 16px;
-          font-size: 13px;
-          font-weight: 600;
-          text-transform: uppercase;
-          border-radius: 8px 8px 0 0;
-        }
-
-        .code-header-small {
-          background: #1e293b;
-          color: #94a3b8;
-        }
-
-        .error-header-small {
-          background: #991b1b;
-          color: #fecaca;
-        }
-
-        .code-snippet {
-          margin: 0;
-          padding: 16px;
-          background: #0f172a;
-          border-radius: 0 0 8px 8px;
-          overflow-x: auto;
-          font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
-          font-size: 13px;
-          color: #e2e8f0;
-          line-height: 1.6;
-        }
-
-        .error-message-box {
-          margin: 0;
-          padding: 16px;
-          background: #fef2f2;
-          border-radius: 0 0 8px 8px;
-          color: #7f1d1d;
-          font-size: 13px;
-          line-height: 1.6;
-          font-family: 'Fira Code', monospace;
-        }
-
-        .error-help {
-          display: flex;
-          align-items: flex-start;
-          gap: 10px;
-          margin-top: 12px;
-          padding: 12px;
-          background: #fffbeb;
-          border-radius: 8px;
-          color: #92400e;
-          font-size: 14px;
-        }
-
-        .output-preview {
-          margin-top: 16px;
-          padding: 16px;
-          background: #f8fafc;
-          border-radius: 8px;
-        }
-
-        .output-preview label {
-          display: block;
-          color: #64748b;
-          margin-bottom: 8px;
-          font-size: 13px;
-          font-weight: 600;
-        }
-
-        .output-preview pre {
-          margin: 0;
-          color: #475569;
-          font-size: 13px;
-          white-space: pre-wrap;
-          font-family: 'Fira Code', monospace;
-        }
-
-        /* ===== GUEST STATE ===== */
-        .analysis-guest {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          min-height: 60vh;
-          color: #64748b;
-          gap: 20px;
-          text-align: center;
-        }
-
-        .analysis-guest h2 {
-          margin: 0;
-          color: #1e293b;
-          font-size: 28px;
-        }
-
-        .analysis-guest p {
-          margin: 0;
-          font-size: 16px;
-        }
-
-        /* ===== RESPONSIVE ===== */
-        @media (max-width: 768px) {
-          .ai-analysis {
-            padding: 16px;
-          }
-
           .ai-header {
             flex-direction: column;
             text-align: center;
+            gap: 20px;
           }
 
-          .header-brand {
+          .header-actions {
+            width: 100%;
+            justify-content: center;
+          }
+
+          .view-tabs {
+            flex-wrap: wrap;
+          }
+
+          .view-tabs button {
+            flex: 1;
+            justify-content: center;
+          }
+
+          .topic-header {
             flex-direction: column;
+            align-items: flex-start;
+            gap: 12px;
           }
 
-          .brand-text h1 {
-            font-size: 22px;
+          .topic-stats {
+            width: 100%;
+            justify-content: space-between;
           }
 
-          .summary-card {
-            padding: 24px;
-          }
-
-          .topics-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .recommendation-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .comparison-grid {
-            grid-template-columns: 1fr;
+          .report-stats {
+            flex-direction: column;
+            gap: 16px;
           }
         }
       `}</style>
