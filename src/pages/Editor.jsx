@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
-  doc, 
-  setDoc, 
   collection, 
   addDoc,
   serverTimestamp 
@@ -35,22 +33,8 @@ const Editor = ({
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState(null);
   const pyodideRef = useRef(null);
   const saveTimeoutRef = useRef(null);
-
-  // ============================================
-  // DEBUG: Props yoxlama
-  // ============================================
-  useEffect(() => {
-    console.log('🔍 Editor Props:', {
-      userId: userId || 'YOXDUR!',
-      courseId,
-      topicId,
-      mode,
-      dbExists: !!db
-    });
-  }, [userId, courseId, topicId, mode]);
 
   // ============================================
   // LOCALSTORAGE-DƏN KODU YÜKLƏ
@@ -59,8 +43,6 @@ const Editor = ({
 
   useEffect(() => {
     const savedCode = localStorage.getItem(storageKey);
-    console.log('📂 LocalStorage yükləmə:', storageKey, savedCode ? 'Tapıldı' : 'Tapılmadı');
-    
     if (savedCode && savedCode.trim() !== '' && savedCode !== starterCode) {
       setCode(savedCode);
     } else {
@@ -78,7 +60,6 @@ const Editor = ({
     
     saveTimeoutRef.current = setTimeout(() => {
       localStorage.setItem(storageKey, code);
-      console.log('💾 LocalStorage-a yazıldı:', storageKey);
     }, 1000);
 
     return () => {
@@ -88,7 +69,6 @@ const Editor = ({
     };
   }, [code, storageKey]);
 
-  // starterCode prop dəyişdikdə
   useEffect(() => {
     const savedCode = localStorage.getItem(storageKey);
     if (!savedCode || savedCode.trim() === '') {
@@ -137,109 +117,72 @@ const Editor = ({
   };
 
   // ============================================
-  // FIRESTORE-A KOD VƏ OUTPUT YAZ - DÜZƏLDİLMİŞ QRUPLAŞDIRMA
+  // FIRESTORE-A YAZ - SADƏLƏŞDİRİLMİŞ
   // ============================================
   const saveToFirestore = async (userCode, runOutput, errorMsg = null, executionStatus = 'success') => {
-    console.log('🚀 Firestore save başladıldı:', {
-      userId: userId || 'YOXDUR',
-      hasDb: !!db,
-      codeLength: userCode?.length,
-      outputLength: runOutput?.length
-    });
+    console.log('🚀 Firestore save:', { userId, courseId, topicId });
 
     if (!userId) {
-      console.warn('⚠️ User ID yoxdur, Firestore-a yazılmadı');
-      setSaveError('İstifadəçi ID yoxdur');
+      console.warn('⚠️ User ID yoxdur');
       return;
     }
 
     if (!db) {
-      console.error('❌ Firebase db obyekti yoxdur!');
-      setSaveError('Firebase bağlantısı yoxdur');
-      return;
-    }
-
-    if (!userCode || userCode.trim() === '') {
-      console.warn('⚠️ Boş kod yazılmadı');
+      console.error('❌ Firebase db yoxdur!');
       return;
     }
 
     setIsSaving(true);
-    setSaveError(null);
     
     try {
-      // 🔥 YENI QRUPLAŞDIRMA STRUKTURU:
-      // users/{userId}/courses/{courseId}/topics/{topicId}/attempts/{autoId}
-      // Beləliklə hər istifadəçinin kodları tam ayrı-ayrı qruplaşdırılır
-      
-      const attemptsRef = collection(
-        db, 
-        'users', 
-        userId, 
-        'courses', 
-        courseId, 
-        'topics', 
-        String(topicId), 
-        'attempts'
-      );
+      // 🔥 SADƏ PATH: codeAttempts/{userId}_{courseId}_{topicId}/{autoId}
+      // Beləliklə hər istifadəçi+ kurs + mövzu kombinasiyası ayrı document olur
+      const attemptsRef = collection(db, 'codeAttempts');
       
       const docData = {
-        // Əsas məlumatlar
-        mode: mode || 'editor',
+        // ID məlumatları (query üçün)
+        userId: userId,
+        courseId: courseId,
+        topicId: Number(topicId),
+        
+        // Kod məlumatları
+        mode: mode,
         code: userCode,
         output: runOutput || '',
         error: errorMsg || null,
-        status: executionStatus, // 'success', 'error', 'runtime_error'
+        status: executionStatus,
         
-        // Timestamp-lər
+        // Timestamp
         timestamp: serverTimestamp(),
         createdAt: new Date().toISOString(),
         
         // Statistika
         codeLength: userCode.length,
-        outputLength: runOutput ? runOutput.length : 0,
         hasPlot: !!plotUrl,
-        executionTime: new Date().toLocaleTimeString('az-AZ'),
         
-        // AI Analizi (əgər varsa)
+        // AI analizi
         aiAnalysis: aiAnalysis ? {
           text: aiAnalysis.text,
-          timestamp: aiAnalysis.timestamp,
-          tokens: aiAnalysis.tokens,
-          type: aiAnalysis.type // 'error_fix' və ya 'success_review'
-        } : null,
-        
-        // Metadata (filtering üçün)
-        dateGroup: new Date().toISOString().split('T')[0], // "2024-03-15" formatında
-        monthGroup: new Date().toISOString().slice(0, 7), // "2024-03" formatında
+          type: aiAnalysis.type
+        } : null
       };
 
-      console.log('📄 Firestore document data:', docData);
-      console.log('📍 Path:', `users/${userId}/courses/${courseId}/topics/${topicId}/attempts/{autoId}`);
-
+      console.log('📄 Saving:', docData);
+      
       const docRef = await addDoc(attemptsRef, docData);
       
-      console.log('✅ Firestore-a yazıldı!');
-      console.log('🔗 Document ID:', docRef.id);
-      console.log('👤 İstifadəçi:', userId);
-      console.log('📚 Kurs:', courseId);
-      console.log('📖 Mövzu:', topicId);
+      console.log('✅ Saved! ID:', docRef.id);
       
     } catch (err) {
-      console.error('❌ Firestore yazma xətası:', err);
-      console.error('Xəta detalları:', {
-        code: err.code,
-        message: err.message,
-        stack: err.stack
-      });
-      setSaveError(err.message);
+      console.error('❌ Firestore xətası:', err);
+      console.error('Detallar:', err.message);
     } finally {
       setIsSaving(false);
     }
   };
 
   // ============================================
-  // AI ANALIZ FUNKSiyasi
+  // AI ANALIZ
   // ============================================
   const analyzeErrorWithAI = async (userCode, errorOutput, successOutput = null) => {
     setAiLoading(true);
@@ -250,77 +193,19 @@ const Editor = ({
         kod: truncateToLimit(userCode, 600),
         xeta: hasError ? truncateToLimit(errorOutput, 400) : null,
         output: successOutput ? truncateToLimit(successOutput, 300) : null,
-        movzu: `Python AI Kursu - Mövzu ${topicId}`,
-        mode: mode === 'exercise' ? 'Tapşırıq rejimi' : 'Azad rejim'
+        movzu: `Mövzu ${topicId}`,
+        mode: mode
       };
 
-      const systemMessage = `Sən peşəkar Python müəllimisisən. Tələbənin koduna bax və fərdi tövsiyələr ver.
-
-ƏSAS VƏZIFƏN:
-- Kodu analiz et və səhvləri tap (əgər varsa)
-- Uğurlu kod üçün optimallaşdırma tövsiyələri ver
-- Tələbənin səviyyəsinə uyğun izahlar ver
-- Həmişə azərbaycanca cavab ver
-
-QAYDALAR:
-1. Kodun işləkliyini yoxla və nəticəni izah et
-2. Əgər xəta varsa: səbəbini və düzəltmə yolunu göstər
-3. Əgər uğurludursa: daha yaxşı yazma yolları təklif et (refactoring)
-4. Təhlükəsizlik problemləri varsa xəbərdarlıq et
-5. Maksimum 5-6 cümlə ilə qısa və aydın izah ver
-6. Kodun hansı sətirlərində problem olduğunu göstər
-
-MƏQSƏD: Tələbəni mükəmməl Python proqramçısı etmək!`;
+      const systemMessage = `Sən Python müəllimisisən. Kodu analiz et və azərbaycanca izah et.`;
 
       let userPrompt;
       
       if (hasError) {
-        userPrompt = `🔴 XƏTA ANALİZİ
-
-Tələbə bu kodu yazdı (${contextData.movzu}, ${contextData.mode}):
-\`\`\`python
-${contextData.kod}
-\`\`\`
-
-❌ XƏTA MESAJI:
-\`\`\`
-${contextData.xeta}
-\`\`\`
-
-SƏNİN VƏZIFƏN:
-1. Xətanın SƏBƏBİNİ izah et (nəyi səhv edib?)
-2. Düzəltmə YOLU göstər (addım-addım)
-3. Növbəti dəfə nəyə diqqət yetirməli
-4. Səhv sətr(lər)i göstər
-
-YADDA SAXLA: Sadə dildə izah et, çətin terminlərdən qaç. Düz hazır kod yazma, yalnız yönləndir!`;
+        userPrompt = `XƏTA ANALİZİ\n\nKod:\n${contextData.kod}\n\nXəta:\n${contextData.xeta}\n\nSəbəbini və düzəltmə yolunu izah et.`;
       } else {
-        userPrompt = `🟢 UĞURLU KOD ANALİZİ
-
-Tələbə bu kodu yazdı (${contextData.movzu}, ${contextData.mode}):
-\`\`\`python
-${contextData.kod}
-\`\`\`
-
-✅ OUTPUT/NƏTICƏ:
-\`\`\`
-${contextData.output || 'Kod uğurla icra olundu (output yoxdur)'}
-\`\`\`
-
-SƏNİN VƏZIFƏN:
-1. Kodun güclü tərəflərini qeyd et
-2. Optimallaşdırma tövsiyələri ver (refactoring)
-3. Ən yaxşı praktikaları göstər (best practices)
-4. Daha qısa/effektiv yazma yolları təklif et (əgər varsa)
-
-YADDA SAXLA: Tələbəni həvəsləndir, amma inkişaf etməsi üçün konkret tövsiyələr ver!`;
+        userPrompt = `KOD ANALİZİ\n\nKod:\n${contextData.kod}\n\nOutput:\n${contextData.output}\n\nOptimallaşdırma tövsiyələri ver.`;
       }
-
-      console.log('🤖 AI analizi göndərilir:', {
-        mode: hasError ? 'XƏTA' : 'UĞUR',
-        kodUzunluq: contextData.kod.length,
-        outputUzunluq: hasError ? contextData.xeta?.length : contextData.output?.length
-      });
 
       const response = await fetch(AI_CONFIG.API_ENDPOINT, {
         method: 'POST',
@@ -332,37 +217,28 @@ YADDA SAXLA: Tələbəni həvəsləndir, amma inkişaf etməsi üçün konkret t
           model: AI_CONFIG.MODEL,
           messages: [
             { role: 'system', content: systemMessage },
-            { role: 'user', content: truncateToLimit(userPrompt, AI_CONFIG.MAX_INPUT_TOKENS - 200) }
+            { role: 'user', content: userPrompt }
           ],
           temperature: AI_CONFIG.TEMPERATURE,
           max_tokens: AI_CONFIG.MAX_OUTPUT_TOKENS
         })
       });
 
-      if (!response.ok) {
-        throw new Error(`API xətası: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`API: ${response.status}`);
 
       const result = await response.json();
       const aiResponse = result.choices[0].message.content;
       
-      const analysisData = {
+      setAiAnalysis({
         text: aiResponse,
         timestamp: new Date().toLocaleTimeString(),
-        tokens: {
-          input: countTokens(systemMessage + userPrompt),
-          output: countTokens(aiResponse)
-        },
         type: hasError ? 'error_fix' : 'success_review'
-      };
-      
-      setAiAnalysis(analysisData);
-      console.log('✅ AI analizi alındı:', analysisData.type);
+      });
 
     } catch (err) {
-      console.error('AI analizi xətası:', err);
+      console.error('AI xətası:', err);
       setAiAnalysis({
-        text: "⚠️ AI analizi alınmadı. Xətanı özünüz araşdırın və ya müəllimdən soruşun.",
+        text: "⚠️ AI analizi alınmadı.",
         timestamp: new Date().toLocaleTimeString(),
         error: true
       });
@@ -378,7 +254,6 @@ YADDA SAXLA: Tələbəni həvəsləndir, amma inkişaf etməsi üçün konkret t
     setPlotUrl(null);
     setAiAnalysis(null);
     localStorage.removeItem(storageKey);
-    console.log('🗑️ Kod təmizləndi');
   };
 
   // Fayl yüklə
@@ -390,7 +265,7 @@ YADDA SAXLA: Tələbəni həvəsləndir, amma inkişaf etməsi üçün konkret t
       const content = event.target.result;
       try {
         pyodideRef.current.FS.writeFile(file.name, content);
-        setOutput(`✅ '${file.name}' uğurla yükləndi.`);
+        setOutput(`✅ '${file.name}' yükləndi.`);
       } catch (err) { 
         setOutput("❌ Fayl xətası: " + err.message); 
       }
@@ -398,10 +273,10 @@ YADDA SAXLA: Tələbəni həvəsləndir, amma inkişaf etməsi üçün konkret t
     reader.readAsText(file);
   };
 
-  // Əsas run funksiyası
+  // Run kod
   const runCode = useCallback(async () => {
     if (!isReady) {
-      setOutput('⏳ Sistem hazırlanır... Zəhmət olmasa gözləyin.');
+      setOutput('⏳ Sistem hazırlanır...');
       return;
     }
 
@@ -410,58 +285,36 @@ YADDA SAXLA: Tələbəni həvəsləndir, amma inkişaf etməsi üçün konkret t
     setAiAnalysis(null);
     
     try {
-      // Lazımi paketləri yüklə
+      // Paketləri yüklə
       const packagesToLoad = [];
-      
-      if (code.includes('import matplotlib') || code.includes('from matplotlib') || code.includes('import plt')) {
-        packagesToLoad.push('matplotlib');
-      }
-      if (code.includes('import numpy') || code.includes('import np') || code.includes('from numpy')) {
-        packagesToLoad.push('numpy');
-      }
-      if (code.includes('import pandas') || code.includes('import pd') || code.includes('from pandas')) {
-        packagesToLoad.push('pandas');
-      }
+      if (code.includes('matplotlib')) packagesToLoad.push('matplotlib');
+      if (code.includes('numpy')) packagesToLoad.push('numpy');
+      if (code.includes('pandas')) packagesToLoad.push('pandas');
 
       for (const pkg of packagesToLoad) {
-        setOutput(prev => prev + `📦 ${pkg} yüklənir...\n`);
+        setOutput(prev => prev + `📦 ${pkg}...\n`);
         await pyodideRef.current.loadPackage(pkg);
       }
 
-      if (code.includes('import seaborn') || code.includes('import sns')) {
-        setOutput(prev => prev + '📦 Seaborn yüklənir...\n');
+      if (code.includes('seaborn')) {
         const micropip = pyodideRef.current.pyimport("micropip");
         await micropip.install("seaborn");
-      }
-
-      if (code.includes('import sklearn') || code.includes('from sklearn')) {
-        setOutput(prev => prev + '📦 Scikit-learn yüklənir...\n');
-        const micropip = pyodideRef.current.pyimport("micropip");
-        await micropip.install("scikit-learn");
       }
 
       // Python mühitini hazırla
       await pyodideRef.current.runPythonAsync(`
 import sys, io, base64
-from js import prompt
 sys.stdout = io.StringIO()
 import builtins
-
-def safe_input(msg=""):
-    res = prompt(msg)
-    return str(res) if res is not None else ""
-
-builtins.input = safe_input
+builtins.input = lambda msg="": str(__import__('js').prompt(msg) or "")
 
 def get_plot():
     try:
         import matplotlib.pyplot as plt
         if plt.get_fignums():
             buf = io.BytesIO()
-            plt.savefig(buf, format='png', bbox_inches='tight', transparent=True)
-            img_str = base64.b64encode(buf.getvalue()).decode('utf-8')
-            plt.close('all')
-            return img_str
+            plt.savefig(buf, format='png')
+            return base64.b64encode(buf.getvalue()).decode()
     except: 
         pass
     return None
@@ -473,36 +326,29 @@ def get_plot():
       const stdout = pyodideRef.current.runPython("sys.stdout.getvalue()");
       const imgData = pyodideRef.current.runPython("get_plot()");
       
-      const finalOutput = stdout || "✅ İcra olundu (output yoxdur).";
+      const finalOutput = stdout || "✅ İcra olundu.";
       setOutput(finalOutput);
       
       if (imgData) setPlotUrl("data:image/png;base64," + imgData);
       
-      // Tapşırıq rejimində həmişə analiz et
+      // AI analizi (tapşırıq rejimində)
       if (mode === 'exercise') {
         await analyzeErrorWithAI(code, null, finalOutput);
       }
       
-      // Firestore-a yaz - YENI QRUPLAŞDIRMA
+      // Firestore-a yaz
       await saveToFirestore(code, finalOutput, null, 'success');
       
-      if (onCodeRun) {
-        onCodeRun(finalOutput, null);
-      }
+      if (onCodeRun) onCodeRun(finalOutput, null);
       
     } catch (err) {
       const errorMsg = "❌ XƏTA:\n" + err.message;
       setOutput(errorMsg);
       
-      // XƏTA OLDUQDA AI ANALIZI
       await analyzeErrorWithAI(code, err.message, null);
-      
-      // Firestore-a yaz - YENI QRUPLAŞDIRMA
       await saveToFirestore(code, errorMsg, err.message, 'error');
       
-      if (onCodeRun) {
-        onCodeRun(errorMsg, err);
-      }
+      if (onCodeRun) onCodeRun(errorMsg, err);
     }
   }, [code, isReady, onCodeRun, userId, courseId, topicId, plotUrl, aiAnalysis, mode]);
 
@@ -530,10 +376,7 @@ def get_plot():
           <span style={{ 
             color: isReady ? '#00ff00' : '#ffaa00', 
             fontSize: '12px', 
-            fontWeight: 'bold',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
+            fontWeight: 'bold'
           }}>
             {isReady ? '●' : '◐'} PYTHON {mode === 'exercise' ? 'EXERCISE' : 'AI LAB'}
           </span>
@@ -546,17 +389,7 @@ def get_plot():
         </div>
         
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          {saveError && (
-            <span style={{ color: '#ff6b6b', fontSize: '10px' }} title={saveError}>
-              ❌ Saxlama xətası
-            </span>
-          )}
-          
-          {isSaving && (
-            <span style={{ color: '#888', fontSize: '11px' }}>
-              💾 ...
-            </span>
-          )}
+          {isSaving && <span style={{ color: '#888', fontSize: '11px' }}>💾 ...</span>}
           
           <button 
             onClick={clearCode} 
@@ -568,9 +401,7 @@ def get_plot():
               padding: '6px 16px', 
               cursor: isReady ? 'pointer' : 'not-allowed', 
               borderRadius: '4px', 
-              fontWeight: 'bold',
-              fontSize: '12px',
-              opacity: isReady ? 1 : 0.5
+              fontSize: '12px'
             }}>
             🗑️ TƏMİZLƏ
           </button>
@@ -585,11 +416,7 @@ def get_plot():
               padding: '6px 20px', 
               cursor: isReady ? 'pointer' : 'not-allowed', 
               borderRadius: '4px', 
-              fontWeight: 'bold',
-              fontSize: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
+              fontSize: '12px'
             }}>
             ▶ RUN
           </button>
@@ -599,187 +426,67 @@ def get_plot():
       {/* Main Content */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         {/* Code Editor */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <textarea
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder={isReady ? '# Python kodunuzu bura yazın...' : 'Sistem hazırlanır...'}
-            style={{ 
-              flex: 1, 
-              background: '#1e1e1e', 
-              color: '#d4d4d4', 
-              padding: '15px', 
-              border: 'none', 
-              outline: 'none', 
-              resize: 'none', 
-              fontFamily: 'monospace', 
-              fontSize: '14px',
-              lineHeight: '1.5'
-            }}
-            spellCheck="false"
-            disabled={!isReady}
-          />
-        </div>
+        <textarea
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder={isReady ? '# Python kodunuzu bura yazın...' : 'Sistem hazırlanır...'}
+          style={{ 
+            flex: 1, 
+            background: '#1e1e1e', 
+            color: '#d4d4d4', 
+            padding: '15px', 
+            border: 'none', 
+            outline: 'none', 
+            resize: 'none', 
+            fontFamily: 'monospace', 
+            fontSize: '14px'
+          }}
+          spellCheck="false"
+          disabled={!isReady}
+        />
         
-        {/* Output + AI Analysis Panel */}
+        {/* Output Panel */}
         <div style={{ 
           flex: 1, 
           background: '#000', 
           padding: '15px', 
           overflowY: 'auto', 
-          borderLeft: '1px solid #333',
-          display: 'flex',
-          flexDirection: 'column'
+          borderLeft: '1px solid #333'
         }}>
-          {/* Output Section */}
-          <div style={{
-            color: '#888',
-            fontSize: '11px',
-            marginBottom: '8px',
-            textTransform: 'uppercase',
-            letterSpacing: '1px'
-          }}>
-            🖥️ Output
-          </div>
           <pre style={{ 
-            margin: '0 0 15px 0', 
-            whiteSpace: 'pre-wrap', 
-            fontSize: '13px', 
             color: output.includes('❌') ? '#ff6b6b' : '#00ff00', 
-            fontFamily: 'monospace',
-            lineHeight: '1.5',
-            maxHeight: aiAnalysis ? '120px' : 'auto',
-            overflowY: 'auto'
+            fontSize: '13px',
+            whiteSpace: 'pre-wrap'
           }}>
             {output}
           </pre>
           
-          {/* Plot */}
           {plotUrl && (
-            <img 
-              src={plotUrl} 
-              alt="Plot" 
-              style={{ 
-                maxWidth: '100%', 
-                marginBottom: '15px', 
-                display: 'block', 
-                background: 'white', 
-                padding: '5px',
-                borderRadius: '4px'
-              }} 
-            />
+            <img src={plotUrl} alt="Plot" style={{ maxWidth: '100%', background: 'white' }} />
           )}
 
-          {/* AI Analysis Section */}
           {aiLoading && (
-            <div style={{
-              padding: '15px',
-              background: '#1a1a2e',
-              borderRadius: '8px',
-              border: '1px solid #4a4a6a'
-            }}>
-              <div style={{ color: '#a0a0ff', fontSize: '12px', marginBottom: '8px' }}>
-                🤖 AI Mentor analiz edir...
-              </div>
-              <div style={{ 
-                height: '4px', 
-                background: '#2a2a4a', 
-                borderRadius: '2px',
-                overflow: 'hidden'
-              }}>
-                <div style={{
-                  height: '100%',
-                  width: '30%',
-                  background: 'linear-gradient(90deg, #667eea, #764ba2)',
-                  animation: 'pulse 1.5s infinite'
-                }} />
-              </div>
+            <div style={{ color: '#a0a0ff', marginTop: '10px' }}>
+              🤖 AI analiz edir...
             </div>
           )}
 
           {aiAnalysis && !aiLoading && (
             <div style={{
-              padding: '15px',
+              marginTop: '10px',
+              padding: '10px',
               background: aiAnalysis.type === 'error_fix' ? '#2a1a1a' : '#1a2e1a',
-              borderRadius: '8px',
-              border: `1px solid ${aiAnalysis.type === 'error_fix' ? '#6a4a4a' : '#4a6a4a'}`,
-              marginTop: '10px'
+              borderRadius: '4px',
+              color: '#e0e0e0'
             }}>
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '10px'
-              }}>
-                <div style={{ 
-                  color: aiAnalysis.type === 'error_fix' ? '#ffa0a0' : '#a0ffa0', 
-                  fontSize: '12px', 
-                  fontWeight: 'bold',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}>
-                  {aiAnalysis.type === 'error_fix' ? '🔴 Xəta Təhlili' : '🟢 Kod İcmalı'}
-                </div>
-                <div style={{ color: '#666', fontSize: '10px' }}>
-                  {aiAnalysis.timestamp} • {aiAnalysis.tokens?.output || '?'} token
-                </div>
-              </div>
-              
-              <div style={{ 
-                color: '#e0e0e0', 
-                fontSize: '13px', 
-                lineHeight: '1.6',
-                whiteSpace: 'pre-wrap'
-              }}>
+              <strong>{aiAnalysis.type === 'error_fix' ? '🔴 Xəta' : '🟢 Tövsiyə'}</strong>
+              <div style={{ marginTop: '5px', whiteSpace: 'pre-wrap' }}>
                 {aiAnalysis.text}
               </div>
-              
-              {aiAnalysis.error && (
-                <div style={{ 
-                  marginTop: '10px', 
-                  padding: '8px', 
-                  background: '#2a1a1a',
-                  borderRadius: '4px',
-                  color: '#ff8888',
-                  fontSize: '11px'
-                }}>
-                  ⚠️ AI xidməti müvəqqəti əlçatan deyil
-                </div>
-              )}
             </div>
           )}
         </div>
       </div>
-      
-      {/* Status Bar */}
-      <div style={{
-        padding: '6px 15px',
-        background: '#2d2d2d',
-        borderTop: '1px solid #444',
-        fontSize: '11px',
-        color: '#888',
-        display: 'flex',
-        justifyContent: 'space-between'
-      }}>
-        <span>{code.split('\n').length} sətir | {code.length} simvol</span>
-        <span>
-          {isReady ? (
-            isSaving ? '💾 Saxlanılır...' : 
-            saveError ? '❌ Saxlama xətası' :
-            aiLoading ? '🤖 AI analiz edir...' :
-            aiAnalysis ? (aiAnalysis.type === 'error_fix' ? '🔴 Xəta təhlili' : '🟢 Kod icmalı') : 
-            '✅ Hazır'
-          ) : '⏳ Yüklənir...'}
-        </span>
-      </div>
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-      `}</style>
     </div>
   );
 };
