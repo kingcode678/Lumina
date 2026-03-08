@@ -88,13 +88,13 @@ const aiVideoLinks = [
     topicId: 1,
     title: "Python Dəyişənləri",
     duration: "15:30",
-    url: "https://youtu.be/V1c0MzR8qo8?si=VTQFIcaakZHEgdCv"
+    url: "https://youtu.be/V1c0MzR8qo8?si=VTQFIcaakZHEgdCv "
   },
   {
     topicId: 1,
     title: "Python Məlumat Tipləri",
     duration: "12:45",
-    url: "https://youtu.be/L2Ryd70pVXI?si=9iDC00hct2RHUxHM"
+    url: "https://youtu.be/L2Ryd70pVXI?si=9iDC00hct2RHUxHM "
   },
   
   // Topic 2: List, Tuple, Dictionary and Set
@@ -102,19 +102,19 @@ const aiVideoLinks = [
     topicId: 2,
     title: "Set ve Tuple",
     duration: "18:20",
-    url: "https://youtu.be/OMwQ_i9GJbI?si=3UJH1fepGsU1bGvM"
+    url: "https://youtu.be/OMwQ_i9GJbI?si=3UJH1fepGsU1bGvM "
   },
   {
     topicId: 2,
     title: "List",
     duration: "16:50",
-    url: "https://youtu.be/pBMuc4cc_Ck?si=lgfUe58fWOXJFmAC"
+    url: "https://youtu.be/pBMuc4cc_Ck?si=lgfUe58fWOXJFmAC "
   },
   {
     topicId: 2,
     title: "Dictionary",
     duration: "12:30",
-    url: "https://youtu.be/0jKOxXn7yMg?si=z7Q8jpACJ1gf9BCN"
+    url: "https://youtu.be/0jKOxXn7yMg?si=z7Q8jpACJ1gf9BCN "
   },
 
   // Topic 3: Conditional Operators
@@ -122,13 +122,13 @@ const aiVideoLinks = [
     topicId: 3,
     title: "Şərt Operatorları",
     duration: "14:15",
-    url: "https://youtu.be/R6DmpXky2WA?si=bpTWg7WpUfkIPtbt"
+    url: "https://youtu.be/R6DmpXky2WA?si=bpTWg7WpUfkIPtbt "
   },
   {
     topicId: 3,
     title: "Şərt Operatorları : İç-içə Şərtlər",
     duration: "17:30",
-    url: "https://youtu.be/gbNRVvPdSa0?si=UdQ6KZUWT-8OBh60"
+    url: "https://youtu.be/gbNRVvPdSa0?si=UdQ6KZUWT-8OBh60 "
   },
   
   // Topic 4: Loops
@@ -136,7 +136,7 @@ const aiVideoLinks = [
     topicId: 4,
     title: "Dövrlər : For və While Dövrləri",
     duration: "19:45",
-    url: "https://youtu.be/JUsemOXDvjY?si=axD0VxWozQFym2DK"
+    url: "https://youtu.be/JUsemOXDvjY?si=axD0VxWozQFym2DK "
   },
   
   // Topic 5: Functions
@@ -144,13 +144,13 @@ const aiVideoLinks = [
     topicId: 5,
     title: "Funksiyalar",
     duration: "22:10",
-    url: "https://youtu.be/_HRn8zB47cs?si=oHTLBbs3EWrQ7_Uu"
+    url: "https://youtu.be/_HRn8zB47cs?si=oHTLBbs3EWrQ7_Uu "
   },
   {
     topicId: 5,
     title: "Lambda və Map Funksiyaları : Anonim Funksiyalar",
     duration: "13:40",
-    url: "https://youtu.be/yC9DIGj_J5o?si=8N7R5Ae1pf_3edNH"
+    url: "https://youtu.be/yC9DIGj_J5o?si=8N7R5Ae1pf_3edNH "
   },
   
   // Topic 6-20 videos...
@@ -158,13 +158,13 @@ const aiVideoLinks = [
     topicId: 6,
     title: "Fayllarla İş",
     duration: "41:57",
-    url: "https://youtu.be/hO7IRvi2nyw?si=nPBtv1w4hj7k3dcw"
+    url: "https://youtu.be/hO7IRvi2nyw?si=nPBtv1w4hj7k3dcw "
   },
   {
     topicId: 7,
     title: "Xətaların İdarə Edilməsi: Try/Except Blokları",
     duration: "24:28",
-    url: "https://youtu.be/iBYppSXFw0A?si=aAVb159nGgLy7CMj"
+    url: "https://youtu.be/iBYppSXFw0A?si=aAVb159nGgLy7CMj "
   },
   {
     topicId: 8,
@@ -328,7 +328,7 @@ const AI = () => {
         throw new Error('API açarı təyin edilməyib');
       }
 
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions ', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${GROQ_API_KEY}`,
@@ -926,6 +926,9 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
                     mode="editor"
                     starterCode={currentTopicData.starterCode?.python || '# Python kodu yazın\nprint("Salam Dünya!")'}
                     onCodeRun={handleCodeRun}
+                    userId={user?.uid}
+                    courseId={COURSE_ID}
+                    topicId={currentTopic + 1}
                   />
                 )}
 
@@ -950,6 +953,9 @@ Hər zaman azərbaycanca cavab ver. Çox uzun olmayan, amma ətraflı izahlar ve
                         mode="exercise"
                         starterCode={exerciseCode || currentTopicData.exercise?.starterCode || '# Kodunuzu bura yazın'}
                         onCodeRun={handleCodeRun}
+                        userId={user?.uid}
+                        courseId={COURSE_ID}
+                        topicId={currentTopic + 1}
                       />
                     </div>
                     

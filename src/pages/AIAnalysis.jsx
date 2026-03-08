@@ -27,9 +27,9 @@ import {
 } from 'lucide-react';
 
 // ============================================
-// API KEY - BIRBAŞA KODDA
+// API KEY - ENVIRONMENT VARIABLE
 // ============================================
-const apiKey = process.env.REACT_APP_GROQ_API_KEY_Analiz;
+const GROQ_API_KEY = process.env.REACT_APP_GROQ_API_KEY_Analiz;
 
 // ============================================
 // KONFiQURASIYA - LIMITLER
@@ -37,7 +37,7 @@ const apiKey = process.env.REACT_APP_GROQ_API_KEY_Analiz;
 const CONFIG = {
   MAX_INPUT_TOKENS: 3000,
   MAX_OUTPUT_TOKENS: 1500,
-  MIN_ATTEMPTS_FOR_ANALYSIS: 2,
+  MIN_ATTEMPTS_FOR_ANALYSIS: 1,
   CONFIDENCE_THRESHOLD: 0.7,
   RETRY_ATTEMPTS: 3,
   API_ENDPOINT: 'https://api.groq.com/openai/v1/chat/completions'
@@ -270,24 +270,21 @@ const ERROR_PATTERNS = {
 const getLastAttempts = (attempts, topicId, type) => {
   if (!attempts || !Array.isArray(attempts)) return [];
   
-  // Mövzu və tip üzrə filter et
   const filtered = attempts.filter(a => 
     a.topicId === topicId && 
     a.type === type
   );
   
-  // Tarixə görə sırala (ən yenisi əvvəl)
   const sorted = filtered.sort((a, b) => 
     new Date(b.timestamp) - new Date(a.timestamp)
   );
   
-  // Son 5 cəhd (son nəticələr üçün kifayətdir)
   return sorted.slice(0, 5);
 };
 
 // Xəta kateqoriyasını müəyyən et
 const categorizeError = (error) => {
-  if (!error) return { category: 'Unknown', type: 'unknown' };
+  if (!error || typeof error !== 'string') return { category: 'Unknown', type: 'unknown' };
   
   const errorLower = error.toLowerCase();
   
@@ -307,9 +304,8 @@ const categorizeError = (error) => {
   return { category: 'Unknown', type: 'unknown' };
 };
 
-// Mastery skoru hesabla (yalnız son cəhdlər əsasında)
+// Mastery skoru hesabla
 const calculateMasteryScore = (quizAttempts, codeAttempts) => {
-  // Quiz nəticələri (40% çəki)
   const quizWeight = 0.4;
   const codeWeight = 0.6;
   
@@ -319,23 +315,17 @@ const calculateMasteryScore = (quizAttempts, codeAttempts) => {
     quizScore = (correct / quizAttempts.length) * 100;
   }
   
-  // Kod nəticələri (60% çəki)
   let codeScore = 0;
   if (codeAttempts.length > 0) {
     const successful = codeAttempts.filter(a => a.isSuccess).length;
     codeScore = (successful / codeAttempts.length) * 100;
   }
   
-  // Əgər hər iki tip varsa, çəkili orta
   if (quizAttempts.length > 0 && codeAttempts.length > 0) {
     return Math.round((quizScore * quizWeight) + (codeScore * codeWeight));
-  }
-  // Yalnız quiz varsa
-  else if (quizAttempts.length > 0) {
+  } else if (quizAttempts.length > 0) {
     return Math.round(quizScore);
-  }
-  // Yalnız kod varsa
-  else if (codeAttempts.length > 0) {
+  } else if (codeAttempts.length > 0) {
     return Math.round(codeScore);
   }
   
@@ -344,7 +334,6 @@ const calculateMasteryScore = (quizAttempts, codeAttempts) => {
 
 // Mövzu analizi et
 const analyzeTopic = (topicId, topicTitle, quizAttempts, codeAttempts) => {
-  // Yalnız son cəhdləri al
   const lastQuiz = getLastAttempts(quizAttempts, topicId, 'quiz');
   const lastCode = getLastAttempts(codeAttempts, topicId, 'code');
   
@@ -355,15 +344,12 @@ const analyzeTopic = (topicId, topicTitle, quizAttempts, codeAttempts) => {
   const score = calculateMasteryScore(lastQuiz, lastCode);
   const level = getLevelByScore(score);
   
-  // Quiz analizi
   const quizCorrect = lastQuiz.filter(a => a.isCorrect).length;
   const quizAccuracy = lastQuiz.length > 0 ? Math.round((quizCorrect / lastQuiz.length) * 100) : 0;
   
-  // Kod analizi
   const codeSuccess = lastCode.filter(a => a.isSuccess).length;
   const codeSuccessRate = lastCode.length > 0 ? Math.round((codeSuccess / lastCode.length) * 100) : 0;
   
-  // Xəta analizi
   const errors = [];
   lastCode.filter(a => !a.isSuccess && a.error).forEach(a => {
     const errInfo = categorizeError(a.error);
@@ -376,7 +362,6 @@ const analyzeTopic = (topicId, topicTitle, quizAttempts, codeAttempts) => {
     });
   });
   
-  // Xəta qruplaşdırması
   const errorGroups = errors.reduce((acc, err) => {
     if (!acc[err.category]) acc[err.category] = [];
     acc[err.category].push(err);
@@ -393,11 +378,9 @@ const analyzeTopic = (topicId, topicTitle, quizAttempts, codeAttempts) => {
     }))
     .sort((a, b) => b.count - a.count);
   
-  // Zəif konseptlər (quizdə səhv cavablananlar)
   const wrongAnswers = lastQuiz.filter(a => !a.isCorrect);
   const weakConcepts = [...new Set(wrongAnswers.map(a => a.concept || 'Ümumi'))].slice(0, 3);
   
-  // Trend (son 2 cəhdin müqayisəsi)
   let trend = 'neutral';
   if (lastQuiz.length >= 2 || lastCode.length >= 2) {
     const recent = [...lastQuiz, ...lastCode].slice(0, 3);
@@ -412,7 +395,6 @@ const analyzeTopic = (topicId, topicTitle, quizAttempts, codeAttempts) => {
     }
   }
   
-  // Tövsiyələr
   const recommendations = [];
   if (score < 50) {
     recommendations.push({
@@ -482,11 +464,11 @@ const analyzeTopic = (topicId, topicTitle, quizAttempts, codeAttempts) => {
   };
 };
 
-// AI Prompt generator - LIMITLI (3000 token)
+// AI Prompt generator
 const generateCompactPrompt = (userId, analyses, currentMonth) => {
   let prompt = `SƏN PEŞƏKAR PYTHON MÜƏLLİMİSƏN. TƏLƏBƏNİN SON NƏTİCƏLƏRİNƏ GÖRƏ QISA VƏ KONKRET TƏHLİL APAR.
 
-TƏLƏBƏ: ${userId.slice(0, 8)}...
+TƏLƏBƏ: ${userId ? userId.slice(0, 8) : 'Unknown'}...
 AY: ${currentMonth}
 TARİX: ${new Date().toLocaleDateString('az-AZ')}
 
@@ -503,15 +485,15 @@ ${idx + 1}. ${a.title} (ID:${a.topicId})
 `;
   });
 
-  const avgScore = Math.round(analyses.reduce((sum, a) => sum + a.score, 0) / analyses.length);
-  const strongest = analyses.reduce((max, a) => a.score > max.score ? a : max, analyses[0]);
-  const weakest = analyses.reduce((min, a) => a.score < min.score ? a : min, analyses[0]);
+  const avgScore = analyses.length > 0 ? Math.round(analyses.reduce((sum, a) => sum + a.score, 0) / analyses.length) : 0;
+  const strongest = analyses.length > 0 ? analyses.reduce((max, a) => a.score > max.score ? a : max, analyses[0]) : null;
+  const weakest = analyses.length > 0 ? analyses.reduce((min, a) => a.score < min.score ? a : min, analyses[0]) : null;
 
   prompt += `
 === ÜMUMI STATISTIKA ===
 Orta bal: ${avgScore}/100
-Ən güclü: ${strongest.title} (${strongest.score})
-Ən zəif: ${weakest.title} (${weakest.score})
+${strongest ? `Ən güclü: ${strongest.title} (${strongest.score})` : ''}
+${weakest ? `Ən zəif: ${weakest.title} (${weakest.score})` : ''}
 Ümumi trend: ${analyses.filter(a => a.trend === 'up').length > analyses.filter(a => a.trend === 'down').length ? 'Yüksəlir' : 'Stabil'}
 
 === TƏLƏBLƏR (MAKSIMUM 1500 TOKEN) ===
@@ -531,9 +513,7 @@ Orta bal: ${avgScore}/100
 
 Cavab Azərbaycanca, sadə və aydın olsun. Texniki terminləri izah et.`;
 
-  // Token limitini yoxla (təxmini: 1 token ≈ 4 char)
   if (prompt.length > CONFIG.MAX_INPUT_TOKENS * 4) {
-    // Çox uzundursa, qısalt
     return prompt.substring(0, CONFIG.MAX_INPUT_TOKENS * 4);
   }
   
@@ -551,30 +531,25 @@ const parseAIResponse = (text) => {
     raw: text
   };
 
-  // Həftəlik plan
   const weekMatches = text.match(/Həftə\s*\d+[:\.]\s*([^\n]+)/gi);
   if (weekMatches) {
     result.weeklyPlan = weekMatches.map(w => w.replace(/Həftə\s*\d+[:\.]\s*/i, '').trim());
   }
 
-  // Müsbət cəhətlər
   const positiveSection = text.match(/[✅✓]\s*([^\n]+)/g);
   if (positiveSection) {
     result.positives = positiveSection.map(p => p.replace(/[✅✓]\s*/, '').trim()).slice(0, 5);
   }
 
-  // Mənfi cəhətlər  
   const negativeSection = text.match(/[⚠️❌✗]\s*([^\n]+)/g);
   if (negativeSection) {
     result.negatives = negativeSection.map(n => n.replace(/[⚠️❌✗]\s*/, '').trim()).slice(0, 5);
   }
 
-  // Motivasiya (son 200 char və ya xüsusi işarələr)
   const motivationMatch = text.match(/(?:💪|🎉|Motivasiya|TƏŞƏKKÜR)[:\s]*([^\n]+)/i);
   if (motivationMatch) {
     result.motivation = motivationMatch[1].trim();
   } else {
-    // Son cümləni götür
     const sentences = text.split(/[.!?]/).filter(s => s.trim().length > 20);
     result.motivation = sentences[sentences.length - 1]?.trim() || 'Uğurlar!';
   }
@@ -583,73 +558,103 @@ const parseAIResponse = (text) => {
 };
 
 // ============================================
-// HOOK - CƏHDLƏRI IDARƏ ETMEK
+// HOOK - CƏHDLƏRI IDARƏ ETMEK (TAM İŞLƏK)
 // ============================================
 export const useAIMentor = () => {
-  // Quiz cəhdini yadda saxla
+  // Quiz cəhdini yadda saxla - TAM YOXLAMALI
   const saveQuizAttempt = useCallback(async (userId, courseId, topicId, attemptData) => {
     try {
+      // Bütün dəyərləri yoxla və default ver
+      const safeAttemptData = attemptData || {};
+      
       const attempt = {
         type: 'quiz',
-        topicId: parseInt(topicId),
-        questionIndex: attemptData.questionIndex,
-        userAnswer: attemptData.userAnswer,
-        isCorrect: attemptData.isCorrect,
-        question: attemptData.question?.substring(0, 200), // Limitlə
-        options: attemptData.options,
-        correctAnswer: attemptData.correctAnswer,
-        concept: attemptData.concept || attemptData.question?.split(' ').slice(0, 3).join(' '),
+        topicId: parseInt(topicId) || 0,
+        questionIndex: safeAttemptData.questionIndex ?? 0,
+        userAnswer: safeAttemptData.userAnswer || 'Cavab verilməyib',
+        isCorrect: Boolean(safeAttemptData.isCorrect),
+        question: (safeAttemptData.question || 'Sual məlumatı yoxdur').substring(0, 200),
+        options: Array.isArray(safeAttemptData.options) ? safeAttemptData.options : [],
+        correctAnswer: safeAttemptData.correctAnswer ?? null,
+        concept: safeAttemptData.concept || (safeAttemptData.question || '').split(' ').slice(0, 3).join(' ') || 'Ümumi',
         timestamp: new Date().toISOString()
       };
 
       // Firestore-a yaz
       const attemptsRef = collection(db, 'users', userId, 'courses', courseId, 'attempts');
-      await addDoc(attemptsRef, attempt);
+      const docRef = await addDoc(attemptsRef, attempt);
       
-      // Son nəticələri cache-lə (lokal state üçün)
-      return attempt;
+      console.log('✅ Quiz attempt saved:', docRef.id);
+      return { id: docRef.id, ...attempt };
     } catch (error) {
-      console.error('Quiz attempt error:', error);
+      console.error('❌ Quiz attempt error:', error);
       throw error;
     }
   }, []);
 
-  // Kod cəhdini yadda saxla
+  // Kod cəhdini yadda saxla - TAM YOXLAMALI
   const saveCodeAttempt = useCallback(async (userId, courseId, topicId, attemptData) => {
     try {
-      const { category, type } = categorizeError(attemptData.error);
+      // Bütün dəyərləri yoxla və default ver
+      const safeAttemptData = attemptData || {};
       
+      // Əsas sahələri təhlükəsiz çıxar
+      const code = String(safeAttemptData.code || '');
+      const output = String(safeAttemptData.output || '');
+      const errorMsg = safeAttemptData.error ? String(safeAttemptData.error) : null;
+      const isSuccess = Boolean(safeAttemptData.isSuccess);
+      const exerciseTitle = String(safeAttemptData.exerciseTitle || 'Naməlum tapşırıq');
+      const requirements = Array.isArray(safeAttemptData.requirements) ? safeAttemptData.requirements : [];
+      
+      // Xəta kateqoriyasını müəyyən et
+      let errorCategory = 'Unknown';
+      let errorType = 'unknown';
+      
+      if (errorMsg && typeof errorMsg === 'string') {
+        const cat = categorizeError(errorMsg);
+        errorCategory = cat.category;
+        errorType = cat.type;
+      }
+
       const attempt = {
         type: 'code',
-        topicId: parseInt(topicId),
-        code: attemptData.code?.substring(0, 1000), // Limitlə
-        output: attemptData.output?.substring(0, 500),
-        error: attemptData.error?.substring(0, 500),
-        errorCategory: category,
-        errorType: type,
-        isSuccess: attemptData.isSuccess,
-        exerciseTitle: attemptData.exerciseTitle,
-        requirements: attemptData.requirements,
+        topicId: parseInt(topicId) || 0,
+        code: code.substring(0, 1000),
+        output: output.substring(0, 500),
+        error: errorMsg ? errorMsg.substring(0, 500) : null,
+        errorCategory: errorCategory,
+        errorType: errorType,
+        isSuccess: isSuccess,
+        exerciseTitle: exerciseTitle,
+        requirements: requirements,
+        codeLength: code.length,
+        hasComments: code.includes('#') || code.includes('"""'),
         timestamp: new Date().toISOString()
       };
 
       const attemptsRef = collection(db, 'users', userId, 'courses', courseId, 'attempts');
-      await addDoc(attemptsRef, attempt);
+      const docRef = await addDoc(attemptsRef, attempt);
       
-      return attempt;
+      console.log('✅ Code attempt saved:', docRef.id);
+      return { id: docRef.id, ...attempt };
     } catch (error) {
-      console.error('Code attempt error:', error);
+      console.error('❌ Code attempt error:', error);
       throw error;
     }
   }, []);
 
-  // Cəhdləri yüklə (yalnız son nəticələr)
+  // Cəhdləri yüklə
   const loadAttempts = useCallback(async (userId, courseId, topicId = null) => {
     try {
+      if (!userId || !courseId) {
+        console.warn('loadAttempts: userId və ya courseId yoxdur');
+        return { quizAttempts: [], codeAttempts: [] };
+      }
+
       let q = query(
         collection(db, 'users', userId, 'courses', courseId, 'attempts'),
         orderBy('timestamp', 'desc'),
-        limit(100) // Son 100 cəhd kifayətdir
+        limit(100)
       );
       
       if (topicId) {
@@ -667,7 +672,7 @@ export const useAIMentor = () => {
         codeAttempts: attempts.filter(a => a.type === 'code')
       };
     } catch (error) {
-      console.error('Load attempts error:', error);
+      console.error('❌ Load attempts error:', error);
       return { quizAttempts: [], codeAttempts: [] };
     }
   }, []);
@@ -684,7 +689,7 @@ const AIAnalysis = ({ user, courseId, topics, currentMonth = 1 }) => {
   const [error, setError] = useState(null);
   const [attempts, setAttempts] = useState({ quizAttempts: [], codeAttempts: [] });
   const [analysis, setAnalysis] = useState(null);
-  const [viewMode, setViewMode] = useState('overview'); // overview, topics, report
+  const [viewMode, setViewMode] = useState('overview');
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [showResetModal, setShowResetModal] = useState(false);
 
@@ -702,12 +707,17 @@ const AIAnalysis = ({ user, courseId, topics, currentMonth = 1 }) => {
         setAttempts(data);
         
         // Saxlanmış analizi yüklə
-        const analysisDoc = await getDoc(doc(db, 'users', user.uid, 'courses', courseId, 'analysis', 'latest'));
-        if (analysisDoc.exists()) {
-          setAnalysis(analysisDoc.data());
+        try {
+          const analysisDoc = await getDoc(doc(db, 'users', user.uid, 'courses', courseId, 'analysis', 'latest'));
+          if (analysisDoc.exists()) {
+            setAnalysis(analysisDoc.data());
+          }
+        } catch (err) {
+          console.log('Əvvəlki analiz yoxdur');
         }
       } catch (err) {
         console.error('Data load error:', err);
+        setError('Məlumatlar yüklənərkən xəta baş verdi');
       } finally {
         setLoading(false);
       }
@@ -716,11 +726,12 @@ const AIAnalysis = ({ user, courseId, topics, currentMonth = 1 }) => {
     fetchData();
   }, [user, courseId, loadAttempts]);
 
-  // Mövzu analizlərini hesabla (yalnız son nəticələr)
+  // Mövzu analizlərini hesabla
   const topicAnalyses = useMemo(() => {
+    if (!topics || !Array.isArray(topics)) return [];
     return topics
       .map((topic, idx) => analyzeTopic(idx + 1, topic.title, attempts.quizAttempts, attempts.codeAttempts))
-      .filter(Boolean); // null olanları at
+      .filter(Boolean);
   }, [attempts, topics]);
 
   // Ümumi statistika
@@ -741,12 +752,17 @@ const AIAnalysis = ({ user, courseId, topics, currentMonth = 1 }) => {
       overallLevel: getLevelByScore(avgScore),
       trend: topicAnalyses.filter(t => t.trend === 'up').length > topicAnalyses.filter(t => t.trend === 'down').length ? 'up' : 'neutral'
     };
-  }, [topicAnalyses, topics.length]);
+  }, [topicAnalyses, topics]);
 
   // AI Analizi apar
-  const generateAIAnalysis = async () => {
+  const generateAIAnalysis = useCallback(async () => {
     if (topicAnalyses.length === 0) {
       setError('Analiz üçün kifayət qədər məlumat yoxdur. Əvvəlcə quiz və kod tapşırıqlarını tamamlayın.');
+      return;
+    }
+
+    if (!GROQ_API_KEY) {
+      setError('API Key təyin edilməyib. Zəhmət olmasa environment variable yoxlayın.');
       return;
     }
 
@@ -754,12 +770,12 @@ const AIAnalysis = ({ user, courseId, topics, currentMonth = 1 }) => {
     setError(null);
 
     try {
-      const prompt = generateCompactPrompt(user.uid, topicAnalyses, currentMonth);
+      const prompt = generateCompactPrompt(user?.uid, topicAnalyses, currentMonth);
       
       const response = await fetch(CONFIG.API_ENDPOINT, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.REACT_APP_GROQ_API_KEY_Analiz}`,
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -778,7 +794,8 @@ const AIAnalysis = ({ user, courseId, topics, currentMonth = 1 }) => {
       });
 
       if (!response.ok) {
-        throw new Error(`API xətası: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`API xətası: ${response.status} - ${errorData.error?.message || 'Bilinməyən xəta'}`);
       }
 
       const result = await response.json();
@@ -804,14 +821,14 @@ const AIAnalysis = ({ user, courseId, topics, currentMonth = 1 }) => {
       setAnalysis(newAnalysis);
     } catch (err) {
       console.error('AI Analysis error:', err);
-      setError('Təhlil apararkən xəta baş verdi. Yenidən cəhd edin.');
+      setError(`Təhlil apararkən xəta baş verdi: ${err.message}`);
     } finally {
       setAnalyzing(false);
     }
-  };
+  }, [topicAnalyses, user, courseId, currentMonth, overallStats]);
 
   // Analizi sıfırla
-  const resetAnalysis = async () => {
+  const resetAnalysis = useCallback(async () => {
     if (!user || !courseId) return;
     try {
       await deleteDoc(doc(db, 'users', user.uid, 'courses', courseId, 'analysis', 'latest'));
@@ -819,8 +836,9 @@ const AIAnalysis = ({ user, courseId, topics, currentMonth = 1 }) => {
       setShowResetModal(false);
     } catch (err) {
       console.error('Reset error:', err);
+      setError('Sıfırlanarkən xəta baş verdi');
     }
-  };
+  }, [user, courseId]);
 
   // Render funksiyaları
   const renderHeader = () => (
@@ -1005,7 +1023,6 @@ const AIAnalysis = ({ user, courseId, topics, currentMonth = 1 }) => {
 
             {selectedTopic === topic.topicId && (
               <div className="topic-details">
-                {/* Tövsiyələr */}
                 {topic.recommendations.length > 0 && (
                   <div className="detail-section">
                     <h5><Lightbulb size={16} /> Tövsiyələr</h5>
@@ -1023,7 +1040,6 @@ const AIAnalysis = ({ user, courseId, topics, currentMonth = 1 }) => {
                   </div>
                 )}
 
-                {/* Xəta təhlili */}
                 {topic.commonErrors.length > 0 && (
                   <div className="detail-section">
                     <h5><Bug size={16} /> Səhv Təhlili</h5>
@@ -1045,7 +1061,6 @@ const AIAnalysis = ({ user, courseId, topics, currentMonth = 1 }) => {
                   </div>
                 )}
 
-                {/* Son fəaliyyət */}
                 <div className="detail-section">
                   <h5><Clock3 size={16} /> Son Fəaliyyət</h5>
                   <div className="activity-list">
@@ -1175,7 +1190,6 @@ const AIAnalysis = ({ user, courseId, topics, currentMonth = 1 }) => {
     <div className="ai-analysis">
       {renderHeader()}
 
-      {/* Reset Modal */}
       {showResetModal && (
         <div className="modal-overlay" onClick={() => setShowResetModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -1192,7 +1206,6 @@ const AIAnalysis = ({ user, courseId, topics, currentMonth = 1 }) => {
         </div>
       )}
 
-      {/* Error */}
       {error && (
         <div className="error-banner">
           <AlertCircle size={24} />
@@ -1201,7 +1214,6 @@ const AIAnalysis = ({ user, courseId, topics, currentMonth = 1 }) => {
         </div>
       )}
 
-      {/* Tabs */}
       <div className="view-tabs">
         <button 
           className={viewMode === 'overview' ? 'active' : ''}
@@ -1223,14 +1235,12 @@ const AIAnalysis = ({ user, courseId, topics, currentMonth = 1 }) => {
         </button>
       </div>
 
-      {/* Content */}
       <main className="ai-content">
         {viewMode === 'overview' && renderOverview()}
         {viewMode === 'topics' && renderTopics()}
         {viewMode === 'report' && renderReport()}
       </main>
 
-      {/* Footer */}
       {analysis && (
         <footer className="analysis-footer">
           <span>🤖 {analysis.model}</span>
@@ -1239,7 +1249,6 @@ const AIAnalysis = ({ user, courseId, topics, currentMonth = 1 }) => {
         </footer>
       )}
 
-      {/* CSS */}
       <style>{`
         .ai-analysis {
           max-width: 1200px;
