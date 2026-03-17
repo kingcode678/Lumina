@@ -1,8 +1,12 @@
 {
   "rewrites": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "source": "/api/prerender",
+      "destination": "/api/prerender.js"
+    },
+    {
+      "source": "/((?!api).*)",
+      "destination": "/api/prerender?url=/$1"
     }
   ],
   "headers": [
@@ -10,8 +14,8 @@
       "source": "/(.*)",
       "headers": [
         {
-          "key": "Cache-Control",
-          "value": "s-maxage=0"
+          "key": "X-Prerender-Token",
+          "value": "IY4MbEsySXbfTCJ6sOkv"
         }
       ]
     }
