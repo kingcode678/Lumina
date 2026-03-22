@@ -892,11 +892,11 @@ const Payment = () => {
               </div>
               <div className="detail-row">
                 <span>Kart:</span>
-                <code className="card-info">4169 7388 1234 5678</code>
+                <code className="card-info">4169 7388 2323 0671</code>
               </div>
               <div className="detail-row">
-                <span>Ad Soyad:</span>
-                <span>Lumina Edu</span>
+                {/*<span>Ad Soyad:</span>*/}
+                {/*<span>Lumina Edu</span>*/}
               </div>
             </div>
 
